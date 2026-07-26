@@ -22,6 +22,11 @@ const paymentRoutes = require('./payment.routes');
 const dashboardRoutes = require('./dashboard.routes');
 const customFieldsRoutes = require('./custom-fields.routes');
 const settingsRoutes = require('./settings.routes');
+const charterRequestRoutes = require('./charter-request.routes');
+const logisticsRequestRoutes = require('./logistics-request.routes');
+const operatorAgentRoutes = require('./operator-agent.routes');
+const checkinRoutes = require('./checkin.routes');
+const adminRoutes = require('./admin.routes');
 
 // Public routes (no authentication required)
 router.use('/public', publicWebRoutes);
@@ -46,5 +51,10 @@ router.use('/payments', paymentRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/custom-fields', customFieldsRoutes);
 router.use('/settings', settingsRoutes);
+router.use('/charter-requests', charterRequestRoutes);
+router.use('/logistics-requests', logisticsRequestRoutes);
+router.use('/operator-agents', operatorAgentRoutes);
+router.use('/checkins', checkinRoutes);
+router.use('/admin', adminRoutes);
 
 module.exports = router;

@@ -102,52 +102,95 @@ enum DriverVehicleAssignedStatus {
     COMPLETED
 }
 
+enum RequestStatus {
+    PENDING
+    QUOTED
+    ACCEPTED
+    REJECTED
+    CANCELLED
+    COMPLETED
+
+    @@map("request_status")
+}
+
 // Models
 model User {
-    id                    String                  @id @default(cuid())
-    email                 String                  @unique
-    password              String
-    avatar                String?
-    mobile                String                  @unique
-    firstName             String                  @map("first_name")
-    lastName              String                  @map("last_name")
-    gender                String?
-    mobileOtp             String?                 @map("mobile_otp")
-    role                  UserRole                @default(USER)
-    active                Boolean                 @default(true)
-    loginAttempts         Int                     @default(0) @map("login_attempts")
-    loginAttemptsDate     DateTime?               @map("login_attempts_date")
-    expiry                DateTime?
-    createdAt             DateTime                @default(now()) @map("created_at")
-    updatedAt             DateTime                @updatedAt @map("updated_at")
-    vendor                Vendor? // One-to-one relation with Vendor
-    bookings              Booking[]
-    routes                Route[]
-    vehicles              Vehicle[]
-    BusSchedule           BusSchedule[]
-    Driver                Driver[]
-    DriverVehicleAssigned DriverVehicleAssigned[]
+    id                          String                  @id @default(cuid())
+    email                       String                  @unique
+    password                    String
+    avatar                      String?
+    mobile                      String                  @unique
+    firstName                   String                  @map("first_name")
+    lastName                    String                  @map("last_name")
+    gender                      String?
+    mobileOtp                   String?                 @map("mobile_otp")
+    role                        UserRole                @default(USER)
+    active                      Boolean                 @default(true)
+    loginAttempts               Int                     @default(0) @map("login_attempts")
+    loginAttemptsDate           DateTime?               @map("login_attempts_date")
+    expiry                      DateTime?
+    // Profile: nationality determines pricing tier
+    nationality                 String?                 @db.VarChar(3)
+    passengerCategory           PassengerCategory?      @map("passenger_category")
+    atollCode                   String?                 @map("atoll_code") @db.VarChar(6)
+    islandName                  String?                 @map("island_name")
+    address                     String?
+    charterProSubscribedUntil   DateTime?               @map("charter_pro_subscribed_until")
+    createdAt                   DateTime                @default(now()) @map("created_at")
+    updatedAt                   DateTime                @updatedAt @map("updated_at")
+    vendor                      Vendor? // One-to-one relation with Vendor
+    bookings                    Booking[]
+    routes                      Route[]
+    vehicles                    Vehicle[]
+    BusSchedule                 BusSchedule[]
+    Driver                      Driver[]
+    DriverVehicleAssigned       DriverVehicleAssigned[]
+    operatorAgentships          OperatorAgent[]
+    charterRequests             CharterRequest[]
+    logisticsRequests           LogisticsRequest[]
+    checkins                    Checkin[]
 
     @@map("users")
 }
 
 model Vendor {
-    id               String        @id @default(cuid())
-    businessName     String        @map("business_name")
-    businessEmail    String?       @unique @map("business_email")
-    businessMobile   String?       @map("business_mobile")
-    businessAddress  String?       @map("business_address")
-    businessLogo     String?       @map("business_logo")
-    status           VendorStatus  @default(ACTIVE)
-    rating           Decimal?      @default(5.0) @db.Decimal(3, 2)
-    agentCommission  Decimal?      @default(5.0) @map("agent_commission") @db.Decimal(5, 2)
-    adminCommission  Decimal?      @default(10.0) @map("admin_commission") @db.Decimal(5, 2)
-    userId           String        @unique @map("user_id") // Foreign key to User
-    user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-    createdAt        DateTime      @default(now()) @map("created_at")
-    updatedAt        DateTime      @updatedAt @map("updated_at")
-    bookings         Booking[]
-    paymentTypes     PaymentType[]
+    id                 String             @id @default(cuid())
+    businessName       String             @map("business_name")
+    businessEmail      String?            @unique @map("business_email")
+    businessMobile     String?            @map("business_mobile")
+    businessAddress    String?            @map("business_address")
+    businessLogo       String?            @map("business_logo")
+    status             VendorStatus       @default(ACTIVE)
+    rating             Decimal?           @default(5.0) @db.Decimal(3, 2)
+    agentCommission    Decimal?           @default(5.0) @map("agent_commission") @db.Decimal(5, 2)
+    adminCommission    Decimal?           @default(10.0) @map("admin_commission") @db.Decimal(5, 2)
+    // Profile
+    contactEmail       String?            @map("contact_email")
+    contactPhone       String?            @map("contact_phone")
+    description        String?
+    baseIsland         String?            @map("base_island")
+    termsConditions    String?            @map("terms_conditions")
+    cancellationPolicy String?            @map("cancellation_policy")
+    faqs               Json?              @default("[]")
+    publicSlug         String?            @unique @map("public_slug") @db.VarChar(80)
+    // MVR bank account
+    bankMvrName        String?            @map("bank_mvr_name")
+    bankMvrHolder      String?            @map("bank_mvr_holder")
+    bankMvrAccount     String?            @map("bank_mvr_account")
+    // USD bank account
+    bankUsdName        String?            @map("bank_usd_name")
+    bankUsdHolder      String?            @map("bank_usd_holder")
+    bankUsdAccount     String?            @map("bank_usd_account")
+    userId             String             @unique @map("user_id")
+    user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+    createdAt          DateTime           @default(now()) @map("created_at")
+    updatedAt          DateTime           @updatedAt @map("updated_at")
+    bookings           Booking[]
+    paymentTypes       PaymentType[]
+    agents             OperatorAgent[]
+    charterRequests    CharterRequest[]
+    logisticsRequests  LogisticsRequest[]
+    checkins           Checkin[]
 
     @@map("vendors")
 }
@@ -157,6 +200,10 @@ model Vehicle {
     vehicleName           String                  @map("vehicle_name")
     vehicleNumber         String                  @unique @map("vehicle_number")
     vehicleImage          String?                 @map("vehicle_image")
+    baseIsland            String?                 @map("base_island")
+    specification         Json?                   @default("{}")
+    termsConditions       String?                 @map("terms_conditions")
+    cancellationPolicy    String?                 @map("cancellation_policy")
     vehicleStatus         VehicleStatus           @default(AVAILABLE) @map("vehicle_status")
     vehicleRating         Decimal?                @map("vehicle_rating") @db.Decimal(2, 1)
     totalSeats            Int                     @map("total_seats")
@@ -181,6 +228,8 @@ model Vehicle {
     bookings              Booking[]
     schedules             BusSchedule[]           @relation("ScheduleVehicles")
     DriverVehicleAssigned DriverVehicleAssigned[]
+    charterRequests       CharterRequest[]
+    logisticsRequests     LogisticsRequest[]
 
     @@map("vehicles")
 }
@@ -306,6 +355,13 @@ model Booking {
     passengerCategory  PassengerCategory? @map("passenger_category")
     currency           String?        @default("MVR") @db.VarChar(3)
     status             BookingStatus  @default(CONFIRMED)
+    isManual           Boolean        @default(false) @map("is_manual")
+    agentId            String?        @map("agent_id")
+    agentDiscount      Decimal?       @default(0) @map("agent_discount") @db.Decimal(10, 2)
+    agentCommission    Decimal?       @default(0) @map("agent_commission") @db.Decimal(10, 2)
+    checkedInAt        DateTime?      @map("checked_in_at")
+    agent              OperatorAgent? @relation(fields: [agentId], references: [id])
+    checkin            Checkin?
     cancellationReason String?        @map("cancellation_reason")
     cancellationCharge Decimal?       @map("cancellation_charge") @db.Decimal(10, 2)
     refundAmount       Decimal?       @map("refund_amount") @db.Decimal(10, 2)
@@ -467,4 +523,111 @@ model DriverVehicleAssigned {
     vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
 
     @@map("driver_vehicle_assigned")
+}
+
+model OperatorAgent {
+    id                 String   @id @default(dbgenerated("gen_random_uuid()::text"))
+    vendorId           String   @map("vendor_id")
+    userId             String   @map("user_id")
+    agentType          String?  @default("AGENT") @map("agent_type") @db.VarChar(20)
+    discountPercent    Decimal? @default(0) @map("discount_percent") @db.Decimal(5, 2)
+    commissionPercent  Decimal? @default(0) @map("commission_percent") @db.Decimal(5, 2)
+    status             String?  @default("PENDING") @db.VarChar(20)
+    createdAt          DateTime @default(now()) @map("created_at")
+    updatedAt          DateTime @updatedAt @map("updated_at")
+    vendor             Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+    user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    bookings           Booking[]
+
+    @@unique([vendorId, userId])
+    @@map("operator_agents")
+}
+
+model CharterRequest {
+    id                   String        @id @default(dbgenerated("gen_random_uuid()::text"))
+    userId               String?       @map("user_id")
+    vendorId             String?       @map("vendor_id")
+    origin               String
+    destination          String
+    tripDate             DateTime      @map("trip_date") @db.Date
+    departureTime        DateTime?     @map("departure_time") @db.Time
+    passengers           Int           @default(1)
+    returnTrip           Boolean?      @default(false) @map("return_trip")
+    returnDate           DateTime?     @map("return_date") @db.Date
+    returnTime           DateTime?     @map("return_time") @db.Time
+    guestName            String?       @map("guest_name")
+    guestEmail           String?       @map("guest_email")
+    guestPhone           String?       @map("guest_phone")
+    specialRequirements  String?       @map("special_requirements")
+    quotedPrice          Decimal?      @map("quoted_price") @db.Decimal(12, 2)
+    quotedCurrency       String?       @map("quoted_currency") @db.VarChar(3)
+    quotedAt             DateTime?     @map("quoted_at")
+    status               RequestStatus @default(PENDING)
+    isManual             Boolean?      @default(false) @map("is_manual")
+    vesselId             String?       @map("vessel_id")
+    captainPhone         String?       @map("captain_phone")
+    meetingPoint         String?       @map("meeting_point")
+    arrivalFlight        String?       @map("arrival_flight")
+    arrivalFlightTime    DateTime?     @map("arrival_flight_time")
+    departureFlight      String?       @map("departure_flight")
+    departureFlightTime  DateTime?     @map("departure_flight_time")
+    hotelName            String?       @map("hotel_name")
+    passengerNames       Json?         @map("passenger_names")
+    paymentMethod        String?       @default("CASH") @map("payment_method") @db.VarChar(30)
+    paymentType          String?       @default("FULL") @map("payment_type") @db.VarChar(30)
+    operatorNotes        String?       @map("operator_notes")
+    createdAt            DateTime      @default(now()) @map("created_at")
+    updatedAt            DateTime      @updatedAt @map("updated_at")
+    user                 User?         @relation(fields: [userId], references: [id])
+    vendor               Vendor?       @relation(fields: [vendorId], references: [id])
+    vessel               Vehicle?      @relation(fields: [vesselId], references: [id])
+
+    @@map("charter_requests")
+}
+
+model LogisticsRequest {
+    id                   String        @id @default(dbgenerated("gen_random_uuid()::text"))
+    userId               String?       @map("user_id")
+    vendorId             String?       @map("vendor_id")
+    origin               String
+    destination          String
+    tripDate             DateTime      @map("trip_date") @db.Date
+    cargoType            String?       @map("cargo_type")
+    weightKg             Decimal?      @map("weight_kg") @db.Decimal(10, 2)
+    volumeM3             Decimal?      @map("volume_m3") @db.Decimal(10, 2)
+    cargoDescription     String?       @map("cargo_description")
+    guestName            String?       @map("guest_name")
+    guestEmail           String?       @map("guest_email")
+    guestPhone           String?       @map("guest_phone")
+    specialRequirements  String?       @map("special_requirements")
+    quotedPrice          Decimal?      @map("quoted_price") @db.Decimal(12, 2)
+    quotedCurrency       String?       @map("quoted_currency") @db.VarChar(3)
+    quotedAt             DateTime?     @map("quoted_at")
+    status               RequestStatus @default(PENDING)
+    isManual             Boolean?      @default(false) @map("is_manual")
+    vesselId             String?       @map("vessel_id")
+    paymentMethod        String?       @default("CASH") @map("payment_method") @db.VarChar(30)
+    operatorNotes        String?       @map("operator_notes")
+    createdAt            DateTime      @default(now()) @map("created_at")
+    updatedAt            DateTime      @updatedAt @map("updated_at")
+    user                 User?         @relation(fields: [userId], references: [id])
+    vendor               Vendor?       @relation(fields: [vendorId], references: [id])
+    vessel               Vehicle?      @relation(fields: [vesselId], references: [id])
+
+    @@map("logistics_requests")
+}
+
+model Checkin {
+    id                 String    @id @default(dbgenerated("gen_random_uuid()::text"))
+    bookingId          String    @unique @map("booking_id")
+    vendorId           String?   @map("vendor_id")
+    scannedByUserId    String?   @map("scanned_by_user_id")
+    scannedAt          DateTime  @default(now()) @map("scanned_at")
+    passengerNames     Json?     @map("passenger_names")
+    notes              String?
+    booking            Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+    vendor             Vendor?   @relation(fields: [vendorId], references: [id])
+    scannedBy          User?     @relation(fields: [scannedByUserId], references: [id])
+
+    @@map("checkins")
 }

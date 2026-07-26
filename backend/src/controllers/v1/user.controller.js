@@ -40,8 +40,25 @@ const updateProfileSchema = z.object({
   lastName: z.string().min(2, 'Last name must be at least 2 characters').optional(),
   mobile: z.string().min(10, 'Mobile number must be at least 10 digits').optional(),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
-  removeAvatar: z.boolean().optional(),
+  nationality: z.string().min(2).max(3).optional().nullable(),
+  passengerCategory: z.enum(['LOCAL', 'EXPAT', 'TOURIST']).optional().nullable(),
+  atollCode: z.string().max(6).optional().nullable(),
+  islandName: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
+  removeAvatar: z
+    .union([z.boolean(), z.string()])
+    .transform((v) => v === true || v === 'true')
+    .optional(),
 });
+
+// Derive passenger category from nationality ISO-3 code
+const derivePassengerCategory = (nationality) => {
+  if (!nationality) return null;
+  const code = String(nationality).toUpperCase();
+  if (code === 'MDV') return 'LOCAL';
+  if (code === 'EXP') return 'EXPAT';
+  return 'TOURIST';
+};
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(6, 'Current password must be at least 6 characters'),
@@ -283,6 +300,12 @@ const getProfile = async (req, res) => {
         role: true,
         active: true,
         expiry: true,
+        nationality: true,
+        passengerCategory: true,
+        atollCode: true,
+        islandName: true,
+        address: true,
+        charterProSubscribedUntil: true,
         createdAt: true
       }
     });
@@ -409,6 +432,11 @@ const updateProfile = async (req, res) => {
     // Remove removeAvatar from update data as it's not a field in the database
     delete updateData.removeAvatar;
 
+    // Derive passenger category server-side from nationality when nationality is provided
+    if (Object.prototype.hasOwnProperty.call(updateData, 'nationality')) {
+      updateData.passengerCategory = derivePassengerCategory(updateData.nationality);
+    }
+
     const user = await prisma.user.update({
       where: { id: userId },
       data: updateData,
@@ -423,6 +451,12 @@ const updateProfile = async (req, res) => {
         role: true,
         active: true,
         expiry: true,
+        nationality: true,
+        passengerCategory: true,
+        atollCode: true,
+        islandName: true,
+        address: true,
+        charterProSubscribedUntil: true,
         createdAt: true
       }
     });

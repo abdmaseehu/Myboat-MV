@@ -28,18 +28,27 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import api from "@/lib/axios";
 
 const vehicleSchema = z.object({
-  vehicleName: z.string().min(1, "Vehicle name is required"),
-  vehicleNumber: z.string().min(1, "Vehicle number is required"),
+  vehicleName: z.string().min(1, "Vessel name is required"),
+  vehicleNumber: z.string().min(1, "Vessel number is required"),
   vehicleType: z.enum(["AC", "NON_AC"]),
   vehicleStatus: z.enum(["AVAILABLE", "MAINTENANCE", "OUT_OF_SERVICE"]),
   vehicleRating: z.string().transform(Number),
   layoutId: z.string().min(1, "Layout is required"),
   routeId: z.string().min(1, "Route is required"),
   vehicleImage: z.any().optional(),
+  baseIsland: z.string().optional(),
+  specLength: z.string().optional(),
+  specEnginePower: z.string().optional(),
+  specTopSpeed: z.string().optional(),
+  specYearBuilt: z.string().optional(),
+  description: z.string().optional(),
+  termsConditions: z.string().optional(),
+  cancellationPolicy: z.string().optional(),
 });
 
 export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
@@ -59,6 +68,14 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
       layoutId: vehicle?.layoutId || "",
       routeId: vehicle?.routeId || "",
       vehicleImage: null,
+      baseIsland: vehicle?.baseIsland || "",
+      specLength: vehicle?.specification?.length?.toString() || "",
+      specEnginePower: vehicle?.specification?.enginePower?.toString() || "",
+      specTopSpeed: vehicle?.specification?.topSpeed?.toString() || "",
+      specYearBuilt: vehicle?.specification?.yearBuilt?.toString() || "",
+      description: vehicle?.specification?.description || "",
+      termsConditions: vehicle?.termsConditions || "",
+      cancellationPolicy: vehicle?.cancellationPolicy || "",
     },
   });
 
@@ -70,10 +87,18 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
         vehicleNumber: vehicle.vehicleNumber,
         vehicleType: vehicle.vehicleType,
         vehicleStatus: vehicle.vehicleStatus,
-        vehicleRating: vehicle.vehicleRating.toString(),
+        vehicleRating: vehicle.vehicleRating?.toString() ?? "5",
         layoutId: vehicle.layoutId,
         routeId: vehicle.routeId,
         vehicleImage: null,
+        baseIsland: vehicle.baseIsland || "",
+        specLength: vehicle.specification?.length?.toString() || "",
+        specEnginePower: vehicle.specification?.enginePower?.toString() || "",
+        specTopSpeed: vehicle.specification?.topSpeed?.toString() || "",
+        specYearBuilt: vehicle.specification?.yearBuilt?.toString() || "",
+        description: vehicle.specification?.description || "",
+        termsConditions: vehicle.termsConditions || "",
+        cancellationPolicy: vehicle.cancellationPolicy || "",
       });
     }
   }, [vehicle, form]);
@@ -107,13 +132,32 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
     try {
       setLoading(true);
       const formData = new FormData();
+
+      const specification = {};
+      if (data.specLength) specification.length = data.specLength;
+      if (data.specEnginePower) specification.enginePower = data.specEnginePower;
+      if (data.specTopSpeed) specification.topSpeed = data.specTopSpeed;
+      if (data.specYearBuilt) specification.yearBuilt = data.specYearBuilt;
+      if (data.description) specification.description = data.description;
+
+      const skipKeys = new Set([
+        "specLength",
+        "specEnginePower",
+        "specTopSpeed",
+        "specYearBuilt",
+        "description",
+      ]);
+
       Object.keys(data).forEach((key) => {
+        if (skipKeys.has(key)) return;
         if (key === "vehicleImage" && data[key]) {
           formData.append(key, data[key][0]);
-        } else {
+        } else if (data[key] !== undefined && data[key] !== null && data[key] !== "") {
           formData.append(key, data[key]);
         }
       });
+
+      formData.append("specification", JSON.stringify(specification));
 
       await api.put(`/vehicles/${vehicle.id}`, formData, {
         headers: {
@@ -121,11 +165,11 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
         },
       });
 
-      toast.success("Vehicle updated successfully");
+      toast.success("Vessel updated successfully");
       onSuccess();
       onClose();
     } catch (error) {
-      toast.error(error.response?.data?.message || "Error updating vehicle");
+      toast.error(error.response?.data?.message || "Error updating vessel");
     } finally {
       setLoading(false);
     }
@@ -135,21 +179,21 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Edit Vehicle</DialogTitle>
+          <DialogTitle>Edit Vessel</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {/* Vehicle Name */}
+            {/* Vessel Name */}
             <FormField
               control={form.control}
               name="vehicleName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Vehicle Name</FormLabel>
+                  <FormLabel>Vessel Name</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Enter vehicle name"
+                      placeholder="Enter vessel name"
                       {...field}
                       className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-sky-500"
                     />
@@ -159,16 +203,16 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
               )}
             />
 
-            {/* Vehicle Number */}
+            {/* Vessel Number */}
             <FormField
               control={form.control}
               name="vehicleNumber"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Vehicle Number</FormLabel>
+                  <FormLabel>Vessel Number</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Enter vehicle number"
+                      placeholder="Enter vessel number"
                       {...field}
                       className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-sky-500"
                     />
@@ -178,20 +222,20 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
               )}
             />
 
-            {/* Vehicle Type */}
+            {/* Vessel Type */}
             <FormField
               control={form.control}
               name="vehicleType"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Vehicle Type</FormLabel>
+                  <FormLabel>Vessel Type</FormLabel>
                   <Select
                     onValueChange={field.onChange}
                     defaultValue={field.value}
                   >
                     <FormControl>
                       <SelectTrigger className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-sky-500">
-                        <SelectValue placeholder="Select vehicle type" />
+                        <SelectValue placeholder="Select vessel type" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -204,20 +248,20 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
               )}
             />
 
-            {/* Vehicle Status */}
+            {/* Vessel Status */}
             <FormField
               control={form.control}
               name="vehicleStatus"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Vehicle Status</FormLabel>
+                  <FormLabel>Vessel Status</FormLabel>
                   <Select
                     onValueChange={field.onChange}
                     defaultValue={field.value}
                   >
                     <FormControl>
                       <SelectTrigger className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-sky-500">
-                        <SelectValue placeholder="Select vehicle status" />
+                        <SelectValue placeholder="Select vessel status" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -233,20 +277,20 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
               )}
             />
 
-            {/* Vehicle Rating */}
+            {/* Vessel Rating */}
             <FormField
               control={form.control}
               name="vehicleRating"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Vehicle Rating</FormLabel>
+                  <FormLabel>Vessel Rating</FormLabel>
                   <Select
                     onValueChange={field.onChange}
                     defaultValue={field.value}
                   >
                     <FormControl>
                       <SelectTrigger className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-sky-500">
-                        <SelectValue placeholder="Select vehicle rating" />
+                        <SelectValue placeholder="Select vessel rating" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -326,18 +370,171 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
               )}
             />
 
-            {/* Vehicle Image */}
+            {/* Vessel Image */}
             <FormField
               control={form.control}
               name="vehicleImage"
               render={({ field: { value, onChange, ...field } }) => (
                 <FormItem>
-                  <FormLabel>Vehicle Image</FormLabel>
+                  <FormLabel>Vessel Image</FormLabel>
                   <FormControl>
                     <Input
                       type="file"
                       accept="image/*"
                       onChange={(e) => onChange(e.target.files)}
+                      {...field}
+                      className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-sky-500"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Base Location */}
+            <FormField
+              control={form.control}
+              name="baseIsland"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Base Location</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="e.g., Dhangethi"
+                      {...field}
+                      className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-sky-500"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Vessel Specification */}
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="specLength"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Length (m)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        placeholder="e.g., 12.5"
+                        {...field}
+                        className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-sky-500"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="specEnginePower"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Engine Power (HP)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="e.g., 300"
+                        {...field}
+                        className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-sky-500"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="specTopSpeed"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Top Speed (knots)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="e.g., 25"
+                        {...field}
+                        className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-sky-500"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="specYearBuilt"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Year Built</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="e.g., 2020"
+                        {...field}
+                        className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-sky-500"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={3}
+                      placeholder="Describe the vessel"
+                      {...field}
+                      className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-sky-500"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="termsConditions"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Terms & Conditions</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={3}
+                      placeholder="Enter terms and conditions"
+                      {...field}
+                      className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-sky-500"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="cancellationPolicy"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Cancellation Policy</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={3}
+                      placeholder="Enter cancellation policy"
                       {...field}
                       className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-sky-500"
                     />
@@ -356,10 +553,10 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Updating Vehicle...
+                  Updating Vessel...
                 </>
               ) : (
-                "Update Vehicle"
+                "Update Vessel"
               )}
             </Button>
           </form>

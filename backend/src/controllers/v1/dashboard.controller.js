@@ -46,6 +46,43 @@ const getDashboardStats = asyncHandler(async (req, res) => {
       }
     });
 
+    // ---- Currency-split (MVR vs USD are handled INDEPENDENTLY) ----
+    // Revenue grouped by currency (PAID only)
+    const revenueByCurrencyRows = await prisma.booking.groupBy({
+      by: ['currency'],
+      where: {
+        ...baseConditions,
+        paymentStatus: 'PAID',
+      },
+      _sum: { finalAmount: true, totalAmount: true },
+      _count: { _all: true },
+    });
+
+    // All bookings grouped by currency (any payment status) for counts
+    const bookingsByCurrencyRows = await prisma.booking.groupBy({
+      by: ['currency'],
+      where: baseConditions,
+      _count: { _all: true },
+      _sum: { finalAmount: true, totalAmount: true },
+    });
+
+    const pickCurrency = (rows, code) =>
+      rows.find((r) => (r.currency || 'MVR').toUpperCase() === code);
+
+    const mvrRev = pickCurrency(revenueByCurrencyRows, 'MVR');
+    const usdRev = pickCurrency(revenueByCurrencyRows, 'USD');
+    const mvrAll = pickCurrency(bookingsByCurrencyRows, 'MVR');
+    const usdAll = pickCurrency(bookingsByCurrencyRows, 'USD');
+
+    const currencyStats = {
+      revenueMvr: Number(mvrRev?._sum.finalAmount || 0),
+      revenueUsd: Number(usdRev?._sum.finalAmount || 0),
+      paidBookingsMvrCount: mvrRev?._count._all || 0,
+      paidBookingsUsdCount: usdRev?._count._all || 0,
+      bookingsMvrCount: mvrAll?._count._all || 0,
+      bookingsUsdCount: usdAll?._count._all || 0,
+    };
+
     // Get upcoming trips for users
     let upcomingTrips = 0;
     if (role === 'USER') {
@@ -133,7 +170,8 @@ const getDashboardStats = asyncHandler(async (req, res) => {
       totalBookings,
       totalRevenue: revenue._sum.finalAmount || 0,
       recentBookings,
-      upcomingTrips
+      upcomingTrips,
+      ...currencyStats,
     };
 
     return res.json(

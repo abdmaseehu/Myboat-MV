@@ -9,9 +9,21 @@ const {
   createVendor,
   updateVendor,
   deleteVendor,
+  getMyVendor,
+  updateMyVendor,
+  getVendorByPublicSlug,
+  getPublicVessel,
 } = require('../../controllers/v1/vendor.controller');
 
-// All routes require authentication and admin role
+// PUBLIC routes (no auth)
+router.get('/public/vessel/:id', getPublicVessel);
+router.get('/public/:slug', getVendorByPublicSlug);
+
+// Authenticated "me" routes - any authenticated user (silently no-ops if not a vendor)
+router.get('/me', isAuthenticated, getMyVendor);
+router.put('/me', isAuthenticated, upload.single('businessLogo'), updateMyVendor);
+
+// Admin-only routes below
 router.use(isAuthenticated, isAdmin);
 
 // Get all vendors with pagination
@@ -29,4 +41,4 @@ router.put('/:id', upload.single('businessLogo'), updateVendor);
 // Delete vendor
 router.delete('/:id', deleteVendor);
 
-module.exports = router; 
+module.exports = router;

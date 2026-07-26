@@ -321,11 +321,87 @@ const deleteSetting = async (req, res) => {
   }
 };
 
+// Update setting by keyName (upsert). Used by admin config pages (bank details, etc.).
+const updateSettingByKey = async (req, res) => {
+  try {
+    const { keyName } = req.params;
+    const { value, type = 'TEXT' } = req.body;
+
+    if (typeof value === 'undefined' || value === null) {
+      return res.status(400).json({
+        success: false,
+        message: 'value is required',
+      });
+    }
+
+    const setting = await prisma.setting.upsert({
+      where: { keyName },
+      update: { value: String(value), type },
+      create: { keyName, value: String(value), type },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Setting updated successfully',
+      data: setting,
+    });
+  } catch (error) {
+    console.error('Error updating setting by key:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error updating setting by key',
+      error: error.message,
+    });
+  }
+};
+
+// Bulk upsert of settings: body { items: [{ key, value, type? }, ...] }
+const updateSettingsBulk = async (req, res) => {
+  try {
+    const { items } = req.body || {};
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'items must be a non-empty array',
+      });
+    }
+
+    const results = await prisma.$transaction(
+      items.map((item) =>
+        prisma.setting.upsert({
+          where: { keyName: item.key },
+          update: { value: String(item.value ?? ''), type: item.type || 'TEXT' },
+          create: {
+            keyName: item.key,
+            value: String(item.value ?? ''),
+            type: item.type || 'TEXT',
+          },
+        })
+      )
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Settings updated successfully',
+      data: results,
+    });
+  } catch (error) {
+    console.error('Error bulk-updating settings:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error bulk-updating settings',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getAllSettings,
   getSettingById,
   getSettingByKey,
   createSetting,
   updateSetting,
+  updateSettingByKey,
+  updateSettingsBulk,
   deleteSetting,
-}; 
+};

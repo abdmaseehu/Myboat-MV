@@ -28,6 +28,22 @@ const vehicleSchema = z.object({
   fuelType: z.enum(['PETROL', 'DIESEL', 'ELECTRIC', 'HYBRID', 'CNG']).optional().nullable(),
   routeId: z.string().optional().nullable(),
   layoutId: z.string().optional().nullable(),
+  // Vessel-specific fields
+  baseIsland: z.string().optional().nullable(),
+  specification: z
+    .union([
+      z.record(z.any()),
+      z
+        .string()
+        .transform((s) => {
+          if (!s) return null;
+          try { return JSON.parse(s); } catch { return null; }
+        }),
+    ])
+    .optional()
+    .nullable(),
+  termsConditions: z.string().optional().nullable(),
+  cancellationPolicy: z.string().optional().nullable(),
 });
 
 // Get all vehicles with pagination and filters

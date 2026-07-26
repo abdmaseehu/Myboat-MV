@@ -6,11 +6,13 @@ import {
   CreditCard,
   Tag,
   Clock,
+  Coins,
+  DollarSign,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import createDynamicList from "@/components/common/create-dynamic-list";
-import dynamic from "next/dynamic";
+import { formatMoney } from "@/lib/currency";
 
 // Format date
 const formatDate = (date) => {
@@ -24,14 +26,6 @@ const formatDate = (date) => {
   } catch (error) {
     return date;
   }
-};
-
-// Format currency
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(amount);
 };
 
 // Get status color
@@ -62,10 +56,36 @@ const getPaymentStatusColor = (status) => {
   }
 };
 
+// Currency badge (MVR = green, USD = blue). Currencies are independent.
+const CurrencyBadge = ({ currency }) => {
+  const cur = (currency || "MVR").toUpperCase();
+  if (cur === "USD") {
+    return (
+      <Badge
+        variant="outline"
+        className="border-sky-500 text-sky-600 flex items-center gap-1 w-fit"
+      >
+        <DollarSign className="h-3 w-3" />
+        USD
+      </Badge>
+    );
+  }
+  return (
+    <Badge
+      variant="outline"
+      className="border-emerald-500 text-emerald-600 flex items-center gap-1 w-fit"
+    >
+      <Coins className="h-3 w-3" />
+      MVR
+    </Badge>
+  );
+};
+
 // Column definitions
 const columns = [
   { key: "booking", header: "Booking Details" },
   { key: "route", header: "Route" },
+  { key: "currency", header: "Currency" },
   { key: "payment", header: "Payment" },
   { key: "status", header: "Status" },
   { key: "created", header: "Created" },
@@ -73,6 +93,7 @@ const columns = [
 
 // Render row data based on column key
 const renderRow = (booking, columnKey) => {
+  const currency = (booking.currency || "MVR").toUpperCase();
   switch (columnKey) {
     case "booking":
       return (
@@ -107,13 +128,27 @@ const renderRow = (booking, columnKey) => {
           </div>
         </div>
       );
+    case "currency":
+      return <CurrencyBadge currency={currency} />;
     case "payment":
       return (
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
-            <CreditCard className="h-4 w-4 text-green-500" />
-            <span className="font-medium">
-              {formatCurrency(booking.finalAmount)}
+            <CreditCard
+              className={cn(
+                "h-4 w-4",
+                currency === "USD" ? "text-sky-500" : "text-emerald-500"
+              )}
+            />
+            <span
+              className={cn(
+                "font-medium",
+                currency === "USD"
+                  ? "text-sky-600 dark:text-sky-400"
+                  : "text-emerald-600 dark:text-emerald-400"
+              )}
+            >
+              {formatMoney(booking.finalAmount, currency)}
             </span>
           </div>
           <Badge
@@ -148,7 +183,8 @@ const renderRow = (booking, columnKey) => {
   }
 };
 
-// Create the dynamic booking list component
+// Create the dynamic booking list component.
+// Adds a Currency filter dropdown (All / MVR / USD).
 const BookingListFactory = createDynamicList({
   title: "Bookings",
   apiEndpoint: "/bookings",
@@ -159,8 +195,19 @@ const BookingListFactory = createDynamicList({
     { label: "Bookings", href: "/admin/bookings" },
   ],
   createConfig: {
-    show: false, // Disable create functionality for bookings
+    show: false,
   },
+  filters: [
+    {
+      key: "currency",
+      label: "Currency",
+      options: [
+        { value: "", label: "All Currencies" },
+        { value: "MVR", label: "MVR" },
+        { value: "USD", label: "USD" },
+      ],
+    },
+  ],
   customActions: [
     {
       label: "View Details",

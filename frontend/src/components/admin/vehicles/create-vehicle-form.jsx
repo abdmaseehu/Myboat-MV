@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Card,
   CardHeader,
@@ -30,6 +31,11 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Loader2,
   Ship,
@@ -41,6 +47,8 @@ import {
   Fuel,
   Image as ImageIcon,
   ArrowLeft,
+  ChevronDown,
+  FileText,
 } from "lucide-react";
 import api from "@/lib/axios";
 import SelectAmenitiesDialog from "./select-amenities-dialog";
@@ -51,10 +59,10 @@ import { cn } from "@/lib/utils";
 import { BreadcrumbNav } from "@/components/ui/breadcrumb";
 
 const vehicleSchema = z.object({
-  vehicleName: z.string().min(2, "Vehicle name must be at least 2 characters"),
+  vehicleName: z.string().min(2, "Vessel name must be at least 2 characters"),
   vehicleNumber: z
     .string()
-    .min(2, "Vehicle number must be at least 2 characters"),
+    .min(2, "Vessel number must be at least 2 characters"),
   vehicleType: z.enum(["AC", "NON_AC"]),
   vehicleStatus: z.enum(["AVAILABLE", "MAINTENANCE", "OUT_OF_SERVICE"]),
   totalSeats: z.string().transform((val) => Number(val)),
@@ -70,6 +78,15 @@ const vehicleSchema = z.object({
   layoutId: z.string().min(1, "Layout is required"),
   routeId: z.string().min(1, "Route is required"),
   vehicleImage: z.any().optional(),
+  // Vessel-specific fields
+  baseIsland: z.string().optional(),
+  specLength: z.string().optional(),
+  specEnginePower: z.string().optional(),
+  specTopSpeed: z.string().optional(),
+  specYearBuilt: z.string().optional(),
+  description: z.string().optional(),
+  termsConditions: z.string().optional(),
+  cancellationPolicy: z.string().optional(),
 });
 
 export default function CreateVehicleForm() {
@@ -81,6 +98,7 @@ export default function CreateVehicleForm() {
   const [preview, setPreview] = useState(null);
   const [amenitiesDialogOpen, setAmenitiesDialogOpen] = useState(false);
   const [selectedAmenities, setSelectedAmenities] = useState([]);
+  const [specOpen, setSpecOpen] = useState(false);
 
   const form = useForm({
     resolver: zodResolver(vehicleSchema),
@@ -100,6 +118,14 @@ export default function CreateVehicleForm() {
       layoutId: "",
       routeId: "",
       vehicleImage: null,
+      baseIsland: "",
+      specLength: "",
+      specEnginePower: "",
+      specTopSpeed: "",
+      specYearBuilt: "",
+      description: "",
+      termsConditions: "",
+      cancellationPolicy: "",
     },
   });
 
@@ -144,11 +170,29 @@ export default function CreateVehicleForm() {
       setLoading(true);
       const formData = new FormData();
 
-      // Append basic fields
+      // Build the specification JSON blob from spec* fields + description
+      const specification = {};
+      if (data.specLength) specification.length = data.specLength;
+      if (data.specEnginePower) specification.enginePower = data.specEnginePower;
+      if (data.specTopSpeed) specification.topSpeed = data.specTopSpeed;
+      if (data.specYearBuilt) specification.yearBuilt = data.specYearBuilt;
+      if (data.description) specification.description = data.description;
+
+      // Fields to exclude from direct FormData iteration
+      const skipKeys = new Set([
+        "amenities",
+        "specLength",
+        "specEnginePower",
+        "specTopSpeed",
+        "specYearBuilt",
+        "description",
+      ]);
+
       Object.keys(data).forEach((key) => {
+        if (skipKeys.has(key)) return;
         if (key === "vehicleImage" && data[key]) {
           formData.append(key, data[key][0]);
-        } else if (key !== "amenities") {
+        } else if (data[key] !== undefined && data[key] !== null && data[key] !== "") {
           formData.append(key, data[key]);
         }
       });
@@ -163,16 +207,19 @@ export default function CreateVehicleForm() {
       // Append formatted amenities
       formData.append("amenities", JSON.stringify(formattedAmenities));
 
+      // Append specification as JSON string
+      formData.append("specification", JSON.stringify(specification));
+
       await api.post("/vehicles", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
       });
 
-      toast.success("Vehicle created successfully");
+      toast.success("Vessel created successfully");
       router.push("/admin/vehicles");
     } catch (error) {
-      toast.error(error.response?.data?.message || "Error creating vehicle");
+      toast.error(error.response?.data?.message || "Error creating vessel");
     } finally {
       setLoading(false);
     }
@@ -186,17 +233,17 @@ export default function CreateVehicleForm() {
             items={[
               { label: "Dashboard", href: "/admin/dashboard" },
               { label: "Vessels", href: "/admin/vehicles" },
-              { label: "Create Vehicle" },
+              { label: "Create Vessel" },
             ]}
             className="mb-2"
           />
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-2xl font-bold">
-                Create New Vehicle
+                Create New Vessel
               </CardTitle>
               <CardDescription>
-                Add a new vehicle to your fleet with complete details.
+                Add a new vessel to your fleet with complete details.
               </CardDescription>
             </div>
             <Button
@@ -226,10 +273,10 @@ export default function CreateVehicleForm() {
                   name="vehicleName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Vehicle Name</FormLabel>
+                      <FormLabel>Vessel Name</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="Enter vehicle name"
+                          placeholder="Enter vessel name"
                           {...field}
                           className="bg-white/50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 focus-visible:ring-sky-500"
                         />
@@ -244,10 +291,10 @@ export default function CreateVehicleForm() {
                   name="vehicleNumber"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Vehicle Number</FormLabel>
+                      <FormLabel>Vessel Number</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="Enter vehicle number"
+                          placeholder="Enter vessel number"
                           {...field}
                           className="bg-white/50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 focus-visible:ring-sky-500"
                         />
@@ -262,7 +309,7 @@ export default function CreateVehicleForm() {
                   name="vehicleType"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Vehicle Type</FormLabel>
+                      <FormLabel>Vessel Type</FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
@@ -287,7 +334,7 @@ export default function CreateVehicleForm() {
                   name="vehicleStatus"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Vehicle Status</FormLabel>
+                      <FormLabel>Vessel Status</FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
@@ -437,7 +484,7 @@ export default function CreateVehicleForm() {
                   name="vehicleImage"
                   render={({ field: { value, onChange, ...field } }) => (
                     <FormItem>
-                      <FormLabel>Vehicle Image</FormLabel>
+                      <FormLabel>Vessel Image</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Input
@@ -637,6 +684,192 @@ export default function CreateVehicleForm() {
               </div>
             </div>
 
+            {/* Vessel Location & Specification */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2 text-sky-500">
+                <MapPin className="h-5 w-5" />
+                Vessel Location
+              </h3>
+              <FormField
+                control={form.control}
+                name="baseIsland"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Base Location</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g., Dhangethi"
+                        {...field}
+                        className="bg-white/50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 focus-visible:ring-sky-500"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="space-y-4">
+              <Collapsible open={specOpen} onOpenChange={setSpecOpen}>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between rounded-md border border-dashed border-sky-300 dark:border-sky-800 p-3 text-left hover:bg-sky-50 dark:hover:bg-sky-950/20"
+                  >
+                    <span className="text-lg font-semibold flex items-center gap-2 text-sky-500">
+                      <Ship className="h-5 w-5" />
+                      Vessel Specification
+                      <span className="text-xs font-normal text-muted-foreground">
+                        (optional)
+                      </span>
+                    </span>
+                    <ChevronDown
+                      className={`h-4 w-4 transition-transform ${specOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={form.control}
+                      name="specLength"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Length (m)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              placeholder="e.g., 12.5"
+                              {...field}
+                              className="bg-white/50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 focus-visible:ring-sky-500"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="specEnginePower"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Engine Power (HP)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="e.g., 300"
+                              {...field}
+                              className="bg-white/50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 focus-visible:ring-sky-500"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="specTopSpeed"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Top Speed (knots)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="e.g., 25"
+                              {...field}
+                              className="bg-white/50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 focus-visible:ring-sky-500"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="specYearBuilt"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Year Built</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="e.g., 2020"
+                              {...field}
+                              className="bg-white/50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 focus-visible:ring-sky-500"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+
+            {/* Description, T&C, Cancellation Policy */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2 text-sky-500">
+                <FileText className="h-5 w-5" />
+                Details & Policies
+              </h3>
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={4}
+                        placeholder="Describe the vessel, its features, and any special notes"
+                        {...field}
+                        className="bg-white/50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 focus-visible:ring-sky-500"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="termsConditions"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Terms & Conditions</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={4}
+                        placeholder="Enter terms and conditions for this vessel"
+                        {...field}
+                        className="bg-white/50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 focus-visible:ring-sky-500"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="cancellationPolicy"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Cancellation Policy</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={4}
+                        placeholder="Enter cancellation policy for this vessel"
+                        {...field}
+                        className="bg-white/50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 focus-visible:ring-sky-500"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             {/* Amenities Selection */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold flex items-center gap-2 text-sky-500">
@@ -645,7 +878,7 @@ export default function CreateVehicleForm() {
               </h3>
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
-                  Select the amenities available in this vehicle
+                  Select the amenities available in this vessel
                 </p>
                 <Button
                   type="button"
@@ -712,10 +945,10 @@ export default function CreateVehicleForm() {
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating Vehicle...
+                    Creating Vessel...
                   </>
                 ) : (
-                  "Create Vehicle"
+                  "Create Vessel"
                 )}
               </Button>
             </div>

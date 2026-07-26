@@ -163,7 +163,7 @@ const VehicleListFactory = createDynamicList({
     href: "/admin/vehicles/create",
   },
   DeleteModal: DeleteVehicleWrapper,
-  searchPlaceholder: "Search vehicles...",
+  searchPlaceholder: "Search vessels...",
   deleteEndpoint: "/vehicles/:id",
   EditMode: false,
 });

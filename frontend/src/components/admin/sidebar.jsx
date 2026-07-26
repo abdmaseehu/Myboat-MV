@@ -32,6 +32,12 @@ import {
   DollarSign,
   Database,
   Globe,
+  Anchor,
+  Truck,
+  UserPlus,
+  Crown,
+  Landmark,
+  QrCode,
 } from "lucide-react";
 import { useSidebar } from "@/store/use-sidebar";
 import { useAuth } from "@/store/use-auth";
@@ -162,6 +168,58 @@ const adminRoutes = [
         href: "/admin/settings",
         color: "text-sky-500",
       },
+      {
+        label: "Bank Details",
+        icon: Landmark,
+        href: "/admin/settings/bank-details",
+        color: "text-sky-500",
+      },
+    ],
+  },
+  {
+    group: "Requests",
+    items: [
+      {
+        label: "Charter Requests",
+        icon: Anchor,
+        href: "/admin/charter-requests",
+        color: "text-sky-500",
+      },
+      {
+        label: "Logistics Requests",
+        icon: Truck,
+        href: "/admin/logistics-requests",
+        color: "text-sky-500",
+      },
+    ],
+  },
+  {
+    group: "Oversight",
+    items: [
+      {
+        label: "All Charter Requests",
+        icon: Anchor,
+        href: "/admin/all-charter-requests",
+        color: "text-sky-500",
+      },
+      {
+        label: "All Logistics Requests",
+        icon: Truck,
+        href: "/admin/all-logistics-requests",
+        color: "text-sky-500",
+      },
+      {
+        label: "All Agents",
+        icon: UserPlus,
+        href: "/admin/all-agents",
+        color: "text-sky-500",
+      },
+      {
+        label: "Subscriptions",
+        icon: Crown,
+        href: "/admin/subscriptions",
+        color: "text-sky-500",
+      },
     ],
   },
 ];
@@ -200,6 +258,18 @@ const vendorRoutes = [
         href: "/admin/bookings",
         color: "text-sky-500",
       },
+      {
+        label: "Agents",
+        icon: UserPlus,
+        href: "/admin/agents",
+        color: "text-sky-500",
+      },
+      {
+        label: "Check-in",
+        icon: QrCode,
+        href: "/admin/check-in",
+        color: "text-sky-500",
+      },
     ],
   },
   {
@@ -215,6 +285,17 @@ const vendorRoutes = [
         label: "Income & Expenses",
         icon: DollarSign,
         href: "/admin/income-expenses",
+        color: "text-sky-500",
+      },
+    ],
+  },
+  {
+    group: "Settings",
+    items: [
+      {
+        label: "Company Profile",
+        icon: Building2,
+        href: "/admin/company-profile",
         color: "text-sky-500",
       },
     ],

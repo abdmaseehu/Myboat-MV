@@ -403,10 +403,275 @@ const deleteVendor = async (req, res) => {
   }
 };
 
+// Zod schema for operator self-update (all optional)
+const myVendorSchema = z.object({
+  businessName: z.string().min(2).optional(),
+  businessLogo: z.string().optional().nullable(),
+  businessMobile: z.string().optional().nullable(),
+  businessEmail: z.string().email().optional().nullable(),
+  businessAddress: z.string().optional().nullable(),
+  contactEmail: z.union([z.string().email(), z.literal('')]).optional().nullable(),
+  contactPhone: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  baseIsland: z.string().optional().nullable(),
+  termsConditions: z.string().optional().nullable(),
+  cancellationPolicy: z.string().optional().nullable(),
+  faqs: z.array(z.object({
+    id: z.string(),
+    question: z.string(),
+    answer: z.string(),
+  })).optional(),
+  publicSlug: z.string().max(80).optional().nullable(),
+  bankMvrName: z.string().optional().nullable(),
+  bankMvrHolder: z.string().optional().nullable(),
+  bankMvrAccount: z.string().optional().nullable(),
+  bankUsdName: z.string().optional().nullable(),
+  bankUsdHolder: z.string().optional().nullable(),
+  bankUsdAccount: z.string().optional().nullable(),
+});
+
+// Normalize slug: lowercase, non-alphanumeric -> '-', collapse dashes, trim
+const normalizeSlug = (raw) => {
+  if (!raw) return raw;
+  return String(raw)
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+};
+
+// GET /vendors/me - current operator's vendor record
+const getMyVendor = async (req, res) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+
+    const vendor = await prisma.vendor.findUnique({
+      where: { userId: req.user.id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            mobile: true,
+            role: true,
+            active: true,
+          },
+        },
+      },
+    });
+
+    if (!vendor) {
+      // Silently no-op for non-vendor users
+      return res.json({ success: true, message: 'No vendor profile', data: null });
+    }
+
+    res.json({ success: true, message: 'Vendor retrieved', data: vendor });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message || 'Error retrieving vendor' });
+  }
+};
+
+// PUT /vendors/me - update current operator's vendor record
+const updateMyVendor = async (req, res) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+
+    const existing = await prisma.vendor.findUnique({ where: { userId: req.user.id } });
+    if (!existing) {
+      // Silently no-op if user isn't a vendor
+      return res.json({ success: true, message: 'No vendor profile', data: null });
+    }
+
+    // If multipart/form-data, faqs may arrive as JSON string
+    const body = { ...req.body };
+    if (typeof body.faqs === 'string') {
+      try { body.faqs = JSON.parse(body.faqs); } catch (_) { /* leave as-is, zod will fail */ }
+    }
+    // If a new logo file uploaded, replace businessLogo
+    if (req.file) {
+      body.businessLogo = `/uploads/${req.file.filename}`;
+      // Delete old logo file if exists
+      if (existing.businessLogo) {
+        const oldPath = path.join(process.cwd(), 'public', existing.businessLogo);
+        await fs.unlink(oldPath).catch(() => {});
+      }
+    }
+
+    const validated = myVendorSchema.parse(body);
+
+    // Normalize + validate publicSlug uniqueness
+    if (validated.publicSlug !== undefined && validated.publicSlug !== null && validated.publicSlug !== '') {
+      const slug = normalizeSlug(validated.publicSlug);
+      if (!slug) {
+        return res.status(400).json({ success: false, message: 'Invalid publicSlug' });
+      }
+      validated.publicSlug = slug;
+
+      const clash = await prisma.vendor.findFirst({
+        where: { publicSlug: slug, NOT: { id: existing.id } },
+        select: { id: true },
+      });
+      if (clash) {
+        return res.status(409).json({ success: false, message: 'This URL is already taken. Please choose another.' });
+      }
+    } else if (validated.publicSlug === '') {
+      validated.publicSlug = null;
+    }
+
+    // Convert empty-string contactEmail to null so DB doesn't store empty
+    if (validated.contactEmail === '') validated.contactEmail = null;
+
+    const vendor = await prisma.vendor.update({
+      where: { id: existing.id },
+      data: validated,
+    });
+
+    res.json({ success: true, message: 'Vendor updated', data: vendor });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: error.errors,
+      });
+    }
+    if (error.code === 'P2002') {
+      return res.status(409).json({ success: false, message: 'A unique field is already taken.' });
+    }
+    res.status(500).json({ success: false, message: error.message || 'Error updating vendor' });
+  }
+};
+
+// GET /vendors/public/:slug - PUBLIC (no auth) - vendor profile + approved vessels
+const getVendorByPublicSlug = async (req, res) => {
+  try {
+    const { slug } = req.params;
+    if (!slug) {
+      return res.status(400).json({ success: false, message: 'Slug required' });
+    }
+
+    const vendor = await prisma.vendor.findUnique({
+      where: { publicSlug: String(slug).toLowerCase() },
+      select: {
+        id: true,
+        businessName: true,
+        businessLogo: true,
+        businessAddress: true,
+        rating: true,
+        contactEmail: true,
+        contactPhone: true,
+        description: true,
+        baseIsland: true,
+        termsConditions: true,
+        cancellationPolicy: true,
+        faqs: true,
+        publicSlug: true,
+        status: true,
+        userId: true,
+      },
+    });
+
+    if (!vendor || vendor.status !== 'ACTIVE') {
+      return res.status(404).json({ success: false, message: 'Operator not found' });
+    }
+
+    // Vessels belong to the vendor's user (via Vehicle.userId)
+    const vehicles = await prisma.vehicle.findMany({
+      where: {
+        userId: vendor.userId,
+        vehicleStatus: { in: ['AVAILABLE', 'BOOKED'] },
+      },
+      select: {
+        id: true,
+        vehicleName: true,
+        vehicleNumber: true,
+        vehicleImage: true,
+        vehicleType: true,
+        vehicleBrand: true,
+        baseIsland: true,
+        totalSeats: true,
+        hasAc: true,
+        vehicleRating: true,
+        availableCity: true,
+        amenities: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Strip internal userId before returning
+    const { userId, status, ...publicVendor } = vendor;
+
+    res.json({
+      success: true,
+      message: 'Vendor retrieved',
+      data: { vendor: publicVendor, vessels: vehicles },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message || 'Error retrieving vendor' });
+  }
+};
+
+// GET /vendors/public/vessel/:id - PUBLIC vessel + its operator (for embed)
+const getPublicVessel = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const vehicle = await prisma.vehicle.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        vehicleName: true,
+        vehicleNumber: true,
+        vehicleImage: true,
+        vehicleType: true,
+        vehicleBrand: true,
+        baseIsland: true,
+        totalSeats: true,
+        hasAc: true,
+        vehicleRating: true,
+        availableCity: true,
+        amenities: true,
+        vehicleStatus: true,
+        userId: true,
+      },
+    });
+    if (!vehicle) {
+      return res.status(404).json({ success: false, message: 'Vessel not found' });
+    }
+    let vendor = null;
+    if (vehicle.userId) {
+      vendor = await prisma.vendor.findUnique({
+        where: { userId: vehicle.userId },
+        select: {
+          id: true,
+          businessName: true,
+          businessLogo: true,
+          publicSlug: true,
+          baseIsland: true,
+        },
+      });
+    }
+    const { userId, ...publicVehicle } = vehicle;
+    res.json({ success: true, data: { vessel: publicVehicle, vendor } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message || 'Error retrieving vessel' });
+  }
+};
+
 module.exports = {
   getAllVendors,
   getVendorById,
   createVendor,
   updateVendor,
   deleteVendor,
-}; 
+  getMyVendor,
+  updateMyVendor,
+  getVendorByPublicSlug,
+  getPublicVessel,
+};

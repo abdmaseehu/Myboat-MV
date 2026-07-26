@@ -9,6 +9,8 @@ const {
   getSettingByKey,
   createSetting,
   updateSetting,
+  updateSettingByKey,
+  updateSettingsBulk,
   deleteSetting,
 } = require('../../controllers/v1/settings.controller');
 
@@ -19,6 +21,8 @@ router.get('/key/:keyName', getSettingByKey);
 router.use(isAuthenticated, isAdmin);
 router.get('/', getAllSettings);
 router.post('/', upload.single('file'), createSetting);
+router.put('/bulk', updateSettingsBulk);
+router.put('/key/:keyName', updateSettingByKey);
 router.get('/:id', getSettingById);
 router.put('/:id', upload.single('file'), updateSetting);
 router.delete('/:id', deleteSetting);

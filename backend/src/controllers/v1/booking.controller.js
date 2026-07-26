@@ -1,6 +1,7 @@
 const getStripeInstance = require('../../config/stripe');
 const { z } = require('zod');
 const { PrismaClient } = require('@prisma/client');
+const { getCurrencyForCategory } = require('../../utils/currency');
 const prisma = new PrismaClient();
 
 // Validation schema for seat numbers
@@ -14,19 +15,28 @@ const seatNumberSchema = z.object({
 
 // Validation schema for booking
 const createBookingSchema = z.object({
-  vehicleId: z.string(),
+  vehicleId: z.string().optional().nullable(),
   vendorId: z.string(),
-  routeId: z.string(),
-  boardingPointId: z.string(),
-  droppingPointId: z.string(),
+  routeId: z.string().optional().nullable(),
+  boardingPointId: z.string().optional().nullable(),
+  droppingPointId: z.string().optional().nullable(),
   bookingDate: z.string().datetime(),
   seatNumbers: z.array(seatNumberSchema),
-  totalAmount: z.number().positive(),
-  discountAmount: z.number().min(0),
-  finalAmount: z.number().positive(),
-  paymentMethod: z.enum(['CASH', 'STRIPE']),
+  totalAmount: z.number().nonnegative(),
+  discountAmount: z.number().min(0).default(0),
+  finalAmount: z.number().nonnegative(),
+  paymentMethod: z.enum(['CASH', 'STRIPE', 'BANK_TRANSFER']),
+  paymentStatus: z.enum(['PAID', 'PENDING', 'PROCESSING', 'AWAITING_PAYMENT', 'FAILED']).optional(),
   passengerCategory: z.enum(['LOCAL', 'EXPAT', 'TOURIST']).optional(),
-  currency: z.string().optional()
+  currency: z.string().optional(),
+  isManual: z.boolean().optional(),
+  agentId: z.string().optional().nullable(),
+  agentDiscount: z.number().min(0).optional(),
+  agentCommission: z.number().min(0).optional(),
+  customerName: z.string().optional(),
+  customerEmail: z.string().optional(),
+  customerPhone: z.string().optional(),
+  notes: z.string().optional(),
 });
 
 const updateBookingSchema = z.object({
@@ -81,9 +91,13 @@ const createBooking = async (req, res) => {
     if (validatedData.paymentMethod === 'STRIPE') {
       try {
         const stripe = await getStripeInstance(); // Get Stripe instance dynamically
+        const stripeCurrency = (
+          validatedData.currency ||
+          getCurrencyForCategory(validatedData.passengerCategory)
+        ).toLowerCase();
         paymentIntent = await stripe.paymentIntents.create({
           amount: Math.round(validatedData.finalAmount * 100),
-          currency: 'usd',
+          currency: stripeCurrency,
           payment_method_types: ['card'],
           metadata: {
             userId: req.user.id,
@@ -101,26 +115,70 @@ const createBooking = async (req, res) => {
       }
     }
 
+    // Manual booking: embed customer info as metadata in seatNumbers so it
+    // is not lost even though Booking does not have dedicated guest columns.
+    const seatNumbersWithMeta =
+      validatedData.isManual && (validatedData.customerName || validatedData.customerEmail || validatedData.customerPhone || validatedData.notes)
+        ? [
+            {
+              key: '_meta',
+              seatNumber: '_meta',
+              deck: 'LOWER',
+              type: 'SEAT',
+              price: 0,
+              meta: true,
+              customerName: validatedData.customerName,
+              customerEmail: validatedData.customerEmail,
+              customerPhone: validatedData.customerPhone,
+              notes: validatedData.notes,
+            },
+            ...validatedData.seatNumbers,
+          ]
+        : validatedData.seatNumbers;
+
+    // Manual bookings default to CONFIRMED (the operator is recording an offline sale)
+    const initialStatus = validatedData.isManual
+      ? 'CONFIRMED'
+      : validatedData.paymentMethod === 'CASH'
+      ? 'PENDING'
+      : 'PROCESSING';
+    const initialPaymentStatus =
+      validatedData.paymentStatus ||
+      (validatedData.isManual
+        ? 'PAID'
+        : validatedData.paymentMethod === 'CASH'
+        ? 'PENDING'
+        : 'PROCESSING');
+
     // Create booking record
     const booking = await prisma.booking.create({
       data: {
-        userId: req.user.id,
+        userId: validatedData.isManual ? null : req.user.id,
         vendorId: validatedData.vendorId,
-        vehicleId: validatedData.vehicleId,
-        routeId: validatedData.routeId,
-        boardingPointId: validatedData.boardingPointId,
-        droppingPointId: validatedData.droppingPointId,
+        vehicleId: validatedData.vehicleId || null,
+        routeId: validatedData.routeId || null,
+        boardingPointId: validatedData.boardingPointId || null,
+        droppingPointId: validatedData.droppingPointId || null,
         bookingDate: validatedData.bookingDate,
         totalAmount: validatedData.totalAmount,
-        discountAmount: validatedData.discountAmount,
+        discountAmount: validatedData.discountAmount || 0,
         finalAmount: validatedData.finalAmount,
         paymentMethod: validatedData.paymentMethod,
-        seatNumbers: validatedData.seatNumbers,
+        seatNumbers: seatNumbersWithMeta,
         passengerCategory: validatedData.passengerCategory,
-        currency: validatedData.currency || 'MVR',
-        status: validatedData.paymentMethod === 'CASH' ? 'PENDING' : 'PROCESSING',
-        paymentStatus: validatedData.paymentMethod === 'CASH' ? 'PENDING' : 'PROCESSING',
-        paymentIntentId: paymentIntent?.id
+        // Currency is ALWAYS derived from passenger category (MVR/USD independent).
+        currency:
+          validatedData.currency ||
+          (typeof getCurrencyForCategory === 'function'
+            ? getCurrencyForCategory(validatedData.passengerCategory)
+            : validatedData.passengerCategory === 'TOURIST' ? 'USD' : 'MVR'),
+        isManual: validatedData.isManual || false,
+        agentId: validatedData.agentId || null,
+        agentDiscount: validatedData.agentDiscount || 0,
+        agentCommission: validatedData.agentCommission || 0,
+        status: initialStatus,
+        paymentStatus: initialPaymentStatus,
+        paymentIntentId: paymentIntent?.id,
       },
       include: {
         user: {
@@ -189,12 +247,12 @@ const createBooking = async (req, res) => {
 // Get all bookings with pagination
 const getAllBookings = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search, status, fromDate, toDate } = req.query;
+    const { page = 1, limit = 10, search, status, fromDate, toDate, stats } = req.query;
     const skip = (page - 1) * limit;
 
     // Build filter conditions
     const where = {};
-    
+
     // Add user filter for non-admin users
     if (req.user.role !== 'ADMIN') {
       if (req.user.role === 'VENDOR') {
@@ -202,6 +260,37 @@ const getAllBookings = async (req, res) => {
       } else {
         where.userId = req.user.id;
       }
+    }
+
+    // Lightweight stats endpoint (used by the operator bookings dashboard cards)
+    if (stats === '1' || stats === 'true') {
+      const [total, confirmed, pending, revenueRows] = await Promise.all([
+        prisma.booking.count({ where }),
+        prisma.booking.count({ where: { ...where, status: 'CONFIRMED' } }),
+        prisma.booking.count({ where: { ...where, status: 'PENDING' } }),
+        prisma.booking.groupBy({
+          by: ['currency'],
+          where: { ...where, paymentStatus: 'PAID' },
+          _sum: { finalAmount: true },
+        }),
+      ]);
+
+      const revenueByCurrency = revenueRows.reduce((acc, row) => {
+        const key = row.currency || 'MVR';
+        acc[key] = Number(row._sum.finalAmount || 0);
+        return acc;
+      }, {});
+
+      return res.json({
+        success: true,
+        message: 'Booking stats retrieved successfully',
+        data: {
+          total,
+          confirmed,
+          pending,
+          revenueByCurrency,
+        },
+      });
     }
     // Add vendor filter if role is vendor
 
