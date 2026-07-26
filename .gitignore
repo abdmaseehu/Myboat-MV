@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Env files (secrets!)
+.env
+.env.local
+.env.production
+.env.development
+**/.env
+**/.env.local
+**/.env.production
+**/.env.development
+!.env.example
+!**/.env.example
+
+# Next.js
+.next/
+**/.next/
+out/
+
+# Build artifacts
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Prisma generated (regen on deploy)
+**/prisma/generated/
+
+# Uploads (user content)
+**/public/uploads/
+
+# Turbo/Vercel cache
+.vercel
+.turbo
+
+# Backup files
+**/*copy*.jsx
+**/*copy*.js

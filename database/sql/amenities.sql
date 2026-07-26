@@ -1,0 +1,4 @@
+INSERT INTO "amenities" ("id", "name", "icon", "created_at", "updated_at") VALUES ('cm7ec92q50000caboh1vuo39d', 'WiFi', 'icon-1740116189879-212774413.png', '2025-02-21 05:36:31.758', '2025-02-21 05:36:31.758');
+INSERT INTO "amenities" ("id", "name", "icon", "created_at", "updated_at") VALUES ('cm7ecthof000011tcme6qq6aw', 'AC', 'icon-1740117141662-997552270.png', '2025-02-21 05:52:21.669', '2025-02-21 05:52:21.669');
+INSERT INTO "amenities" ("id", "name", "icon", "created_at", "updated_at") VALUES ('cm843gwv3000013jab14yr5sd', 'TV', 'icon-1741673561165-378141118.png', '2025-03-11 06:12:41.174', '2025-03-11 06:12:41.174');
+INSERT INTO "amenities" ("id", "name", "icon", "created_at", "updated_at") VALUES ('cm7hk0x780004j4hk5rlb244s', 'Just', 'icon-1741673629101-549824274.png', '2025-02-23 11:37:26.539', '2025-03-11 06:13:52.32');

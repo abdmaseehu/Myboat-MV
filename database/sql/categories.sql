@@ -1,0 +1,3 @@
+INSERT INTO "categories" ("id", "name", "type", "created_at", "updated_at", "user_id") VALUES ('cm7fq8z2b0000lk8jvl2f9324', 'just test', 'INCOME', '2025-02-22 04:56:07.811', '2025-02-22 04:56:07.811', 'cm7a679lf0000gbx1zxk35fxi');
+INSERT INTO "categories" ("id", "name", "type", "created_at", "updated_at", "user_id") VALUES ('cm843rzub000113ja9wfeynk6', 'Salary', 'EXPENSE', '2025-03-11 06:21:18.515', '2025-03-11 06:21:18.515', 'cm78y6zu00001qp7yd8i4ovsz');
+INSERT INTO "categories" ("id", "name", "type", "created_at", "updated_at", "user_id") VALUES ('cm7ftd58900005x7pc91orawv', 'Others', 'INCOME', '2025-02-22 06:23:21.273', '2025-03-29 10:51:40.374', 'cm78y6zu00001qp7yd8i4ovsz');

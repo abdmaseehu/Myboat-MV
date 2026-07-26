@@ -1,0 +1,160 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Phone Input Styles */
+.PhoneInput {
+  @apply flex items-center gap-2;
+}
+
+.PhoneInputCountry {
+  @apply flex items-center gap-1 bg-zinc-800/50 border border-zinc-700 rounded-md px-2 py-1.5;
+}
+
+.PhoneInputCountrySelect {
+  @apply bg-transparent text-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-sky-500;
+}
+
+.PhoneInputCountryIcon {
+  @apply w-5 h-4 overflow-hidden rounded;
+}
+
+.PhoneInputInput {
+  @apply bg-zinc-800/50 border border-zinc-700 text-white rounded-md px-3 py-2 w-full focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500;
+}
+
+.PhoneInputInput:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+/* Dark theme specific styles */
+.dark .PhoneInputCountry {
+  @apply bg-zinc-800/50 border-zinc-700;
+}
+
+.dark .PhoneInputCountrySelect {
+  @apply text-white;
+}
+
+.dark .PhoneInputInput {
+  @apply bg-zinc-800/50 border-zinc-700 text-white placeholder-gray-400;
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 98%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 199 89% 48%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 199 89% 96%;
+    --secondary-foreground: 199 89% 20%;
+    --muted: 199 20% 96%;
+    --muted-foreground: 199 15% 40%;
+    --accent: 199 89% 96%;
+    --accent-foreground: 199 89% 20%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 199 20% 90%;
+    --input: 199 20% 90%;
+    --ring: 199 89% 48%;
+    --chart-1: 199 89% 48%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 210 80% 55%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+    --sidebar-background: 199 60% 12%;
+    --sidebar-foreground: 199 20% 90%;
+    --sidebar-primary: 199 89% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 199 60% 18%;
+    --sidebar-accent-foreground: 199 20% 95%;
+    --sidebar-border: 199 60% 20%;
+    --sidebar-ring: 199 89% 55%;
+  }
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 199 89% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 199 30% 18%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 199 20% 18%;
+    --muted-foreground: 199 10% 65%;
+    --accent: 199 30% 22%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 199 20% 20%;
+    --input: 199 20% 20%;
+    --ring: 199 89% 55%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom scrollbar styles */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+/* For Webkit browsers */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(234, 179, 8, 0.2);
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(234, 179, 8, 0.4);
+}
+
+/* Apply custom scrollbar to ScrollArea */
+[data-radix-scroll-area-viewport] > div {
+  @apply scrollbar-thin !important;
+}
