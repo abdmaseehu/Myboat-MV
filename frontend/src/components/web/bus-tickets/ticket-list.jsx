@@ -112,10 +112,18 @@ const CATEGORY_OPTIONS = [
 
 const priceForCategory = (vehicle, category) => {
   const schedule = vehicle?.schedules?.[0] || {};
-  if (category === "LOCAL")
-    return { amount: schedule.priceLocalMvr, currency: "MVR" };
-  if (category === "EXPAT")
-    return { amount: schedule.priceExpatMvr, currency: "MVR" };
+  // Local / Expat: MVR. Fall back to layout price (also MVR) if operator hasn't
+  // set the tier price yet.
+  if (category === "LOCAL") {
+    const amount = schedule.priceLocalMvr ?? vehicle?.layout?.seaterPrice;
+    return { amount, currency: "MVR" };
+  }
+  if (category === "EXPAT") {
+    const amount = schedule.priceExpatMvr ?? vehicle?.layout?.seaterPrice;
+    return { amount, currency: "MVR" };
+  }
+  // Tourist: USD only. Do NOT fall back to the MVR layout price — that would
+  // mislabel the currency. If operator hasn't set priceTouristUsd, show "—".
   if (category === "TOURIST")
     return { amount: schedule.priceTouristUsd, currency: "USD" };
   return { amount: vehicle?.layout?.seaterPrice, currency: "MVR" };
@@ -566,11 +574,18 @@ export default function TicketList({ routeId, date }) {
                                     <p className="text-2xl font-bold text-sky-800 dark:text-sky-300">
                                       {amount != null
                                         ? formatCurrency(amount, cur)
-                                        : formatCurrency(
-                                            vehicle.layout?.seaterPrice,
-                                            "MVR"
-                                          )}
+                                        : cur === "USD"
+                                          ? "USD —"
+                                          : formatCurrency(
+                                              vehicle.layout?.seaterPrice,
+                                              "MVR"
+                                            )}
                                     </p>
+                                  {amount == null && cur === "USD" && (
+                                    <span className="text-xs text-muted-foreground italic mt-1">
+                                      Tourist USD rate not set — contact operator
+                                    </span>
+                                  )}
                                   </div>
                                 </motion.div>
                               );

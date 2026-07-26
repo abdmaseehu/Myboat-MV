@@ -14,11 +14,13 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -48,6 +50,7 @@ const vehicleSchema = z.object({
   specYearBuilt: z.string().optional(),
   description: z.string().optional(),
   termsConditions: z.string().optional(),
+  seatSelectionEnabled: z.boolean().optional().default(true),
   cancellationPolicy: z.string().optional(),
 });
 
@@ -75,6 +78,7 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
       specYearBuilt: vehicle?.specification?.yearBuilt?.toString() || "",
       description: vehicle?.specification?.description || "",
       termsConditions: vehicle?.termsConditions || "",
+      seatSelectionEnabled: vehicle?.seatSelectionEnabled !== false,
       cancellationPolicy: vehicle?.cancellationPolicy || "",
     },
   });
@@ -98,6 +102,7 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
         specYearBuilt: vehicle.specification?.yearBuilt?.toString() || "",
         description: vehicle.specification?.description || "",
         termsConditions: vehicle.termsConditions || "",
+        seatSelectionEnabled: vehicle.seatSelectionEnabled !== false,
         cancellationPolicy: vehicle.cancellationPolicy || "",
       });
     }
@@ -540,6 +545,32 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
                     />
                   </FormControl>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="seatSelectionEnabled"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border border-sky-200 dark:border-sky-800 p-4 bg-sky-50/50 dark:bg-sky-900/10">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">
+                      Enable Seat Selection
+                    </FormLabel>
+                    <FormDescription>
+                      When ON, customers pick specific seats. When OFF, customers
+                      only enter a passenger count — best for speedboats without
+                      assigned seating.
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      className="data-[state=checked]:bg-sky-500"
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />

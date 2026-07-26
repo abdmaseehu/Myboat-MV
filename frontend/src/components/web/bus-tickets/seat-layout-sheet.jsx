@@ -7,11 +7,10 @@ import {
   SheetDescription,
   SheetFooter,
 } from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
-import { Ship, Loader2 } from "lucide-react";
+import { Ship, Loader2, Users, Minus, Plus } from "lucide-react";
 import SeatLayout from "./seat-layout";
 import BoardingPointSelection from "./boarding-point-selection";
 import useTicketStore from "@/store/use-ticket-store";
@@ -61,10 +60,13 @@ const itemVariants = {
 };
 
 export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
-  const [selectedDeck, setSelectedDeck] = useState("lower");
+  // Ferry/speedboat: always single deck. Never show upper deck tab regardless
+  // of legacy `hasUpperDeck` data on old layouts.
   const [showBoardingPoints, setShowBoardingPoints] = useState(false);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
+  // Passenger count (used when operator disables seat selection on this vessel)
+  const [passengerCount, setPassengerCount] = useState(1);
   const searchParams = useSearchParams();
   const {
     selectedSeats = [],
@@ -73,6 +75,10 @@ export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
     bookingDate,
     setBookingDate,
   } = useTicketStore();
+
+  // Per-vessel setting: operator can disable seat selection entirely
+  const seatSelectionEnabled = vehicle?.seatSelectionEnabled !== false;
+  const capacity = vehicle?.totalSeats || vehicle?.layout?.totalSeats || 10;
 
   // Fetch bookings when component mounts or when vehicle/date changes
   useEffect(() => {
@@ -156,7 +162,19 @@ export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
   };
 
   const handleContinue = () => {
-    if (!Array.isArray(selectedSeats) || selectedSeats.length === 0) return;
+    if (seatSelectionEnabled) {
+      if (!Array.isArray(selectedSeats) || selectedSeats.length === 0) return;
+    } else {
+      // Seat selection disabled: synthesize virtual "seats" from passenger count
+      const price = Number(vehicle?.layout?.seaterPrice) || 0;
+      const virtualSeats = Array.from({ length: passengerCount }, (_, i) => ({
+        key: `virtual-${i + 1}`,
+        type: "SEAT",
+        price,
+      }));
+      setSelectedSeats(virtualSeats);
+      setTotalAmount(price * passengerCount);
+    }
     setShowBoardingPoints(true);
   };
 
@@ -275,82 +293,76 @@ export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
                     Loading seat availability...
                   </p>
                 </motion.div>
+              ) : seatSelectionEnabled ? (
+                <SeatLayout
+                  layout={vehicle?.layout?.layoutJson}
+                  deck="lower"
+                  selectedSeats={selectedSeats}
+                  onSeatSelect={handleSeatSelect}
+                  vehicle={vehicle}
+                  bookings={bookings}
+                  bookingDate={bookingDate}
+                />
               ) : (
-                <>
-                  {vehicle?.layout?.hasUpperDeck ? (
-                    <Tabs
-                      defaultValue="lower"
-                      className="w-full"
-                      onValueChange={setSelectedDeck}
+                // Operator disabled seat selection: simple passenger counter
+                <div className="flex flex-col items-center justify-center py-12 gap-6">
+                  <div className="w-20 h-20 rounded-full bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center">
+                    <Users className="w-10 h-10 text-sky-500" />
+                  </div>
+                  <div className="text-center">
+                    <p className="font-medium text-lg">Number of Passengers</p>
+                    <p className="text-sm text-muted-foreground">
+                      This operator does not require seat selection.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4 bg-sky-50 dark:bg-sky-900/20 rounded-xl p-4">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() =>
+                        setPassengerCount((c) => Math.max(1, c - 1))
+                      }
+                      disabled={passengerCount <= 1}
                     >
-                      <TabsList className="w-full grid grid-cols-2 mb-6">
-                        <TabsTrigger
-                          value="lower"
-                          className="data-[state=active]:bg-sky-500 data-[state=active]:text-black transition-all duration-200"
-                        >
-                          <Ship className="w-4 h-4 mr-2" />
-                          Lower Deck
-                        </TabsTrigger>
-                        <TabsTrigger
-                          value="upper"
-                          className="data-[state=active]:bg-sky-500 data-[state=active]:text-black transition-all duration-200"
-                        >
-                          <Ship className="w-4 h-4 mr-2" />
-                          Upper Deck
-                        </TabsTrigger>
-                      </TabsList>
-                      <TabsContent value="lower">
-                        <SeatLayout
-                          layout={vehicle?.layout?.layoutJson}
-                          deck="lower"
-                          selectedSeats={selectedSeats}
-                          onSeatSelect={handleSeatSelect}
-                          vehicle={vehicle}
-                          bookings={bookings}
-                          bookingDate={bookingDate}
-                        />
-                      </TabsContent>
-                      <TabsContent value="upper">
-                        <SeatLayout
-                          layout={vehicle?.layout?.layoutJson}
-                          deck="upper"
-                          selectedSeats={selectedSeats}
-                          onSeatSelect={handleSeatSelect}
-                          vehicle={vehicle}
-                          bookings={bookings}
-                          bookingDate={bookingDate}
-                        />
-                      </TabsContent>
-                    </Tabs>
-                  ) : (
-                    <SeatLayout
-                      layout={vehicle?.layout?.layoutJson}
-                      deck="lower"
-                      selectedSeats={selectedSeats}
-                      onSeatSelect={handleSeatSelect}
-                      vehicle={vehicle}
-                      bookings={bookings}
-                      bookingDate={bookingDate}
-                    />
-                  )}
-                </>
+                      <Minus className="w-4 h-4" />
+                    </Button>
+                    <span className="text-3xl font-bold w-12 text-center text-sky-700 dark:text-sky-400">
+                      {passengerCount}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() =>
+                        setPassengerCount((c) => Math.min(capacity, c + 1))
+                      }
+                      disabled={passengerCount >= capacity}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Max {capacity} passengers
+                  </p>
+                </div>
               )}
             </div>
 
-            <div className="mt-4 space-y-4">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-gradient-to-br from-sky-50 to-sky-100/50 dark:from-sky-900/20 dark:to-sky-900/10 rounded-xl p-6 shadow-lg"
-              >
-                <h3 className="font-medium mb-4 text-sky-700 dark:text-sky-400">
-                  Selected Seats
-                </h3>
-                <div className="flex flex-col gap-2">
-                  {renderSelectedSeats()}
-                </div>
-              </motion.div>
-            </div>
+            {seatSelectionEnabled && (
+              <div className="mt-4 space-y-4">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-gradient-to-br from-sky-50 to-sky-100/50 dark:from-sky-900/20 dark:to-sky-900/10 rounded-xl p-6 shadow-lg"
+                >
+                  <h3 className="font-medium mb-4 text-sky-700 dark:text-sky-400">
+                    Selected Seats
+                  </h3>
+                  <div className="flex flex-col gap-2">
+                    {renderSelectedSeats()}
+                  </div>
+                </motion.div>
+              </div>
+            )}
 
             <SheetFooter className="mt-6">
               <motion.div
@@ -361,9 +373,11 @@ export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
                 <Button
                   onClick={handleContinue}
                   disabled={
-                    !Array.isArray(selectedSeats) || selectedSeats.length === 0
+                    seatSelectionEnabled
+                      ? !Array.isArray(selectedSeats) || selectedSeats.length === 0
+                      : passengerCount < 1
                   }
-                  className="w-full bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-black font-medium shadow-lg transition-all duration-300"
+                  className="w-full bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white font-medium shadow-lg transition-all duration-300"
                 >
                   Continue Booking
                 </Button>

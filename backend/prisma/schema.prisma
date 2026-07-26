@@ -204,6 +204,7 @@ model Vehicle {
     specification         Json?                   @default("{}")
     termsConditions       String?                 @map("terms_conditions")
     cancellationPolicy    String?                 @map("cancellation_policy")
+    seatSelectionEnabled  Boolean                 @default(true) @map("seat_selection_enabled")
     vehicleStatus         VehicleStatus           @default(AVAILABLE) @map("vehicle_status")
     vehicleRating         Decimal?                @map("vehicle_rating") @db.Decimal(2, 1)
     totalSeats            Int                     @map("total_seats")

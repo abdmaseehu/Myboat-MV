@@ -44,6 +44,9 @@ const vehicleSchema = z.object({
     .nullable(),
   termsConditions: z.string().optional().nullable(),
   cancellationPolicy: z.string().optional().nullable(),
+  seatSelectionEnabled: z
+    .union([z.boolean(), z.enum(['true', 'false']).transform((s) => s === 'true')])
+    .optional(),
 });
 
 // Get all vehicles with pagination and filters

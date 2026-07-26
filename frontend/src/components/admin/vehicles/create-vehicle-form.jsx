@@ -9,11 +9,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -86,6 +88,7 @@ const vehicleSchema = z.object({
   specYearBuilt: z.string().optional(),
   description: z.string().optional(),
   termsConditions: z.string().optional(),
+  seatSelectionEnabled: z.boolean().optional().default(true),
   cancellationPolicy: z.string().optional(),
 });
 
@@ -125,6 +128,7 @@ export default function CreateVehicleForm() {
       specYearBuilt: "",
       description: "",
       termsConditions: "",
+      seatSelectionEnabled: true,
       cancellationPolicy: "",
     },
   });
@@ -441,6 +445,32 @@ export default function CreateVehicleForm() {
                         />
                       </FormControl>
                       <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="seatSelectionEnabled"
+                  render={({ field }) => (
+                    <FormItem className="col-span-1 md:col-span-2 flex flex-row items-center justify-between rounded-lg border border-sky-200 dark:border-sky-800 p-4 bg-sky-50/50 dark:bg-sky-900/10">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">
+                          Enable Seat Selection
+                        </FormLabel>
+                        <FormDescription>
+                          When ON, customers pick specific seats from the layout.
+                          When OFF, customers only enter a passenger count — best for
+                          speedboats or small ferries without assigned seating.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          className="data-[state=checked]:bg-sky-500"
+                        />
+                      </FormControl>
                     </FormItem>
                   )}
                 />
