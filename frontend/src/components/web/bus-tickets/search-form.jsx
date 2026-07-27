@@ -1,8 +1,17 @@
+"use client";
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2, MapPin, Ship, Search, X } from "lucide-react";
+import {
+  CalendarIcon,
+  Loader2,
+  MapPin,
+  Ship,
+  ArrowRight,
+  Users,
+  ArrowRightLeft,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -27,16 +36,25 @@ import { cn } from "@/lib/utils";
 import api from "@/lib/axios";
 import { toast } from "sonner";
 
+const TABS = [
+  { id: "ferry", label: "Ferry", href: "/bus-tickets" },
+  { id: "charter", label: "Private Charter", href: "/charter" },
+  { id: "logistics", label: "Logistics", href: "/logistics" },
+];
+
 export default function SearchForm({
   isDialog = false,
   defaultValues = {},
   onClose,
   className,
+  variant = "light", // "light" = for placement on hero (glass card); "solid" = for dialogs
 }) {
   const router = useRouter();
+  const [tab, setTab] = useState("ferry");
   const [date, setDate] = useState(
     defaultValues.date ? new Date(defaultValues.date) : new Date()
   );
+  const [passengers, setPassengers] = useState(1);
   const [routes, setRoutes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isLoadingCities, setIsLoadingCities] = useState(true);
@@ -46,264 +64,240 @@ export default function SearchForm({
     routeId: defaultValues.routeId || "",
   });
 
-  // Get unique source cities
-  const sourceCities = [
-    ...new Set(routes.map((route) => route.sourceCity)),
-  ].sort();
-
-  // Get destination cities based on selected source city
+  const sourceCities = [...new Set(routes.map((r) => r.sourceCity))].sort();
   const destinationCities = routes
-    .filter((route) => route.sourceCity === formData.sourceCity)
-    .map((route) => route.destinationCity)
+    .filter((r) => r.sourceCity === formData.sourceCity)
+    .map((r) => r.destinationCity)
     .sort();
 
-  // Fetch cities on component mount
   useEffect(() => {
     const fetchCities = async () => {
       try {
         setIsLoadingCities(true);
         const response = await api.get("/public/cities");
-        if (response.data.success) {
-          setRoutes(response.data.data);
-        }
-      } catch (error) {
-        console.error("Error fetching cities:", error);
+        if (response.data.success) setRoutes(response.data.data);
+      } catch {
         toast.error("Failed to load islands. Please try again.");
       } finally {
         setIsLoadingCities(false);
       }
     };
-
     fetchCities();
   }, []);
 
+  const swap = () => {
+    setFormData((p) => ({
+      ...p,
+      sourceCity: p.destinationCity,
+      destinationCity: p.sourceCity,
+    }));
+  };
+
   const handleSearch = async () => {
+    if (tab !== "ferry") {
+      router.push(TABS.find((t) => t.id === tab).href);
+      return;
+    }
     if (!formData.sourceCity || !formData.destinationCity || !date) {
       toast.error("Please select all required fields");
       return;
     }
-
     try {
       setLoading(true);
-      // Find the route ID based on source and destination cities
       const selectedRoute = routes.find(
-        (route) =>
-          route.sourceCity === formData.sourceCity &&
-          route.destinationCity === formData.destinationCity
+        (r) =>
+          r.sourceCity === formData.sourceCity &&
+          r.destinationCity === formData.destinationCity
       );
-
       if (selectedRoute) {
-        // Add a small delay to show loading state
-        await new Promise((resolve) => setTimeout(resolve, 800));
-
-        const searchUrl = `/bus-tickets?route-id=${
-          selectedRoute.id
-        }&from=${encodeURIComponent(
+        await new Promise((r) => setTimeout(r, 500));
+        const url = `/bus-tickets?route-id=${selectedRoute.id}&from=${encodeURIComponent(
           formData.sourceCity
-        )}&to=${encodeURIComponent(formData.destinationCity)}&date=${format(
-          date,
-          "yyyy-MM-dd"
-        )}`;
-
-        router.push(searchUrl);
+        )}&to=${encodeURIComponent(formData.destinationCity)}&date=${format(date, "yyyy-MM-dd")}`;
+        router.push(url);
         if (onClose) onClose();
       } else {
         toast.error("No routes available for selected islands");
         setLoading(false);
       }
-    } catch (error) {
-      console.error("Error searching routes:", error);
+    } catch {
       toast.error("Failed to search routes. Please try again.");
       setLoading(false);
     }
   };
 
+  const inputClass =
+    "w-full h-14 rounded-2xl border border-border/60 bg-white hover:bg-foam focus:bg-white transition-colors px-4 text-ocean-deep font-medium data-[placeholder]:text-muted-foreground";
+
   const FormContent = () => (
-    <div className={cn("space-y-6", className)}>
-      <div className="space-y-2">
-        <h2 className="text-2xl font-semibold text-white">Book Your Trip</h2>
-        <p className="text-sm text-gray-300">
-          Find the perfect boat for your journey
-        </p>
-      </div>
-
-      {/* Source City */}
-      <div className="space-y-2">
-        <label className="text-sm text-gray-300">From</label>
-        <Select
-          value={formData.sourceCity}
-          onValueChange={(value) =>
-            setFormData((prev) => ({
-              ...prev,
-              sourceCity: value,
-              destinationCity: "", // Reset destination when source changes
-            }))
-          }
-          disabled={isLoadingCities}
-        >
-          <SelectTrigger
+    <div className={cn("w-full", className)}>
+      {/* Tabs */}
+      <div className="flex items-center gap-1 p-1 rounded-full bg-foam/80 border border-border/50 w-fit mx-auto md:mx-0 mb-6">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
             className={cn(
-              "w-full border-white/20 text-white",
-              isLoadingCities ? "bg-white/5" : "bg-white/10 hover:bg-white/20"
+              "px-4 md:px-5 h-10 rounded-full text-sm font-medium tracking-wide transition-all",
+              tab === t.id
+                ? "bg-coral text-white shadow-coral"
+                : "text-ocean/70 hover:text-ocean-deep"
             )}
           >
-            <SelectValue placeholder="Select departure island">
-              {isLoadingCities ? (
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading islands...
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  {formData.sourceCity || "Select departure island"}
-                </div>
-              )}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {sourceCities.length === 0 && !isLoadingCities ? (
-              <div className="p-2 text-sm text-center text-muted-foreground">
-                No islands available
-              </div>
-            ) : (
-              sourceCities.map((city) => (
-                <SelectItem key={city} value={city}>
-                  {city}
-                </SelectItem>
-              ))
-            )}
-          </SelectContent>
-        </Select>
+            {t.label}
+          </button>
+        ))}
       </div>
 
-      {/* Destination City */}
-      <div className="space-y-2">
-        <label className="text-sm text-gray-300">To</label>
-        <Select
-          value={formData.destinationCity}
-          onValueChange={(value) =>
-            setFormData((prev) => ({ ...prev, destinationCity: value }))
-          }
-          disabled={isLoadingCities || !formData.sourceCity}
-        >
-          <SelectTrigger
-            className={cn(
-              "w-full border-white/20 text-white",
-              isLoadingCities || !formData.sourceCity
-                ? "bg-white/5"
-                : "bg-white/10 hover:bg-white/20"
-            )}
-          >
-            <SelectValue placeholder="Select destination island">
-              {isLoadingCities ? (
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading islands...
-                </div>
-              ) : !formData.sourceCity ? (
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  Select departure island first
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  {formData.destinationCity || "Select destination island"}
-                </div>
-              )}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {destinationCities.length === 0 ? (
-              <div className="p-2 text-sm text-center text-muted-foreground">
-                {!formData.sourceCity
-                  ? "Select departure island first"
-                  : "No destinations available"}
-              </div>
-            ) : (
-              destinationCities.map((city) => (
-                <SelectItem key={city} value={city}>
-                  {city}
-                </SelectItem>
-              ))
-            )}
-          </SelectContent>
-        </Select>
-      </div>
+      {tab === "ferry" ? (
+        <>
+          {/* Fields */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-3 items-end">
+            {/* From */}
+            <FieldWrap label="From" icon={MapPin}>
+              <Select
+                value={formData.sourceCity}
+                onValueChange={(v) =>
+                  setFormData((p) => ({ ...p, sourceCity: v, destinationCity: "" }))
+                }
+                disabled={isLoadingCities}
+              >
+                <SelectTrigger className={inputClass}>
+                  <SelectValue placeholder={isLoadingCities ? "Loading..." : "Departure island"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {sourceCities.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <button
+                type="button"
+                onClick={swap}
+                aria-label="Swap"
+                className="hidden md:flex absolute -right-2 top-9 h-9 w-9 items-center justify-center rounded-full bg-white border border-border shadow-sm z-10 hover:border-lagoon hover:text-lagoon text-ocean"
+              >
+                <ArrowRightLeft className="h-4 w-4" />
+              </button>
+            </FieldWrap>
 
-      {/* Date Picker */}
-      <div className="space-y-2">
-        <label className="text-sm text-gray-300">Journey Date</label>
-        <Popover>
-          <PopoverTrigger asChild>
+            {/* To */}
+            <FieldWrap label="To" icon={MapPin}>
+              <Select
+                value={formData.destinationCity}
+                onValueChange={(v) => setFormData((p) => ({ ...p, destinationCity: v }))}
+                disabled={isLoadingCities || !formData.sourceCity}
+              >
+                <SelectTrigger className={inputClass}>
+                  <SelectValue
+                    placeholder={
+                      !formData.sourceCity ? "Select departure first" : "Destination island"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {destinationCities.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FieldWrap>
+
+            {/* Date */}
+            <FieldWrap label="Date" icon={CalendarIcon}>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(inputClass, "flex items-center justify-between text-left")}
+                  >
+                    <span className={date ? "text-ocean-deep" : "text-muted-foreground"}>
+                      {date ? format(date, "MMM d, yyyy") : "Pick a date"}
+                    </span>
+                    <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 rounded-2xl" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={date}
+                    onSelect={setDate}
+                    initialFocus
+                    disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
+                  />
+                </PopoverContent>
+              </Popover>
+            </FieldWrap>
+
+            {/* Passengers */}
+            <FieldWrap label="Passengers" icon={Users}>
+              <div className={cn(inputClass, "flex items-center justify-between")}>
+                <button
+                  type="button"
+                  onClick={() => setPassengers((p) => Math.max(1, p - 1))}
+                  className="h-8 w-8 rounded-full bg-foam text-ocean-deep hover:bg-lagoon/10 flex items-center justify-center"
+                >
+                  −
+                </button>
+                <span className="text-ocean-deep font-medium">{passengers}</span>
+                <button
+                  type="button"
+                  onClick={() => setPassengers((p) => p + 1)}
+                  className="h-8 w-8 rounded-full bg-foam text-ocean-deep hover:bg-lagoon/10 flex items-center justify-center"
+                >
+                  +
+                </button>
+              </div>
+            </FieldWrap>
+          </div>
+
+          {/* Submit */}
+          <div className="mt-5 md:mt-6 flex md:justify-end">
             <Button
-              variant="outline"
-              className={cn(
-                "w-full justify-start text-left font-normal bg-white/10 border-white/20 text-white hover:bg-white/20",
-                !date && "text-muted-foreground"
-              )}
-              disabled={isLoadingCities}
+              onClick={handleSearch}
+              disabled={loading || isLoadingCities}
+              className="w-full md:w-auto md:min-w-[220px] h-14 bg-coral hover:bg-coral-soft text-white rounded-full shadow-coral text-base font-medium tracking-wide"
             >
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {date ? format(date, "PPP") : <span>Pick a date</span>}
+              {loading ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" /> Searching...
+                </>
+              ) : (
+                <>
+                  Search boats <ArrowRight className="h-4 w-4 ml-1.5" />
+                </>
+              )}
             </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={date}
-              onSelect={setDate}
-              initialFocus
-              disabled={(date) => date < new Date()}
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
-
-      {/* Search Button */}
-      <Button
-        className={cn(
-          "w-full font-semibold h-12 transition-all duration-200",
-          loading || isLoadingCities
-            ? "bg-sky-500/50 cursor-not-allowed"
-            : "bg-sky-500 hover:bg-sky-600 hover:shadow-lg transform hover:-translate-y-0.5"
-        )}
-        onClick={handleSearch}
-        disabled={
-          loading ||
-          isLoadingCities ||
-          !formData.sourceCity ||
-          !formData.destinationCity ||
-          !date
-        }
-      >
-        {loading ? (
-          <div className="flex items-center gap-2">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            <span>Searching Available Boats...</span>
           </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <Ship className="h-5 w-5" />
-            {isLoadingCities ? "Loading..." : "Search Available Boats"}
-          </div>
-        )}
-      </Button>
-
-      {/* Additional Info */}
-      <p className="text-xs text-gray-400 text-center">
-        * All prices include taxes and fees. Terms and conditions apply.
-      </p>
+        </>
+      ) : (
+        <div className="text-center py-8 md:py-12 space-y-4">
+          <Ship className="h-10 w-10 text-lagoon mx-auto" />
+          <p className="text-ocean-deep text-lg font-medium">
+            {tab === "charter" ? "Request a private charter" : "Ship cargo across atolls"}
+          </p>
+          <p className="text-muted-foreground text-sm max-w-md mx-auto">
+            {tab === "charter"
+              ? "Have a boat all to yourself. Verified operators respond within hours."
+              : "Bulk goods, supplies, and equipment delivered to any inhabited island."}
+          </p>
+          <Button
+            onClick={handleSearch}
+            className="bg-coral hover:bg-coral-soft text-white rounded-full h-12 px-8 shadow-coral"
+          >
+            Continue <ArrowRight className="h-4 w-4 ml-1.5" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 
   if (isDialog) {
     return (
       <Dialog open={true} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[500px] bg-zinc-900 border-zinc-800">
+        <DialogContent className="sm:max-w-[720px] rounded-3xl">
           <DialogHeader>
-            <DialogTitle className="text-white">Modify Search</DialogTitle>
+            <DialogTitle className="text-ocean-deep">Modify Search</DialogTitle>
           </DialogHeader>
           <FormContent />
         </DialogContent>
@@ -312,4 +306,15 @@ export default function SearchForm({
   }
 
   return <FormContent />;
+}
+
+function FieldWrap({ label, icon: Icon, children }) {
+  return (
+    <div className="relative">
+      <label className="block text-[11px] uppercase tracking-[0.18em] text-muted-foreground mb-1.5 pl-1">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
 }

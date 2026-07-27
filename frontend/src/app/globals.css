@@ -2,123 +2,101 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
-}
-
-/* Phone Input Styles */
-.PhoneInput {
-  @apply flex items-center gap-2;
-}
-
-.PhoneInputCountry {
-  @apply flex items-center gap-1 bg-zinc-800/50 border border-zinc-700 rounded-md px-2 py-1.5;
-}
-
-.PhoneInputCountrySelect {
-  @apply bg-transparent text-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-sky-500;
-}
-
-.PhoneInputCountryIcon {
-  @apply w-5 h-4 overflow-hidden rounded;
-}
-
-.PhoneInputInput {
-  @apply bg-zinc-800/50 border border-zinc-700 text-white rounded-md px-3 py-2 w-full focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500;
-}
-
-.PhoneInputInput:disabled {
-  @apply opacity-50 cursor-not-allowed;
-}
-
-/* Dark theme specific styles */
-.dark .PhoneInputCountry {
-  @apply bg-zinc-800/50 border-zinc-700;
-}
-
-.dark .PhoneInputCountrySelect {
-  @apply text-white;
-}
-
-.dark .PhoneInputInput {
-  @apply bg-zinc-800/50 border-zinc-700 text-white placeholder-gray-400;
-}
+/* ============================================================
+   MYBOAT MV — PREMIUM MALDIVES DESIGN SYSTEM
+   Palette inspired by tropical lagoons: turquoise water, coral
+   sunsets, sand, foam. Airy, editorial, resort-like.
+   ============================================================ */
 
 @layer base {
   :root {
-    --background: 0 0% 98%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    /* Semantic tokens (shadcn compatible) */
+    --background: 40 33% 98%;               /* Warm cream (sand) */
+    --foreground: 205 60% 12%;              /* Deep ocean */
+    --card: 0 0% 100%;                      /* Pure white — foam */
+    --card-foreground: 205 60% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 199 89% 48%;
+    --popover-foreground: 205 60% 12%;
+    --primary: 186 78% 42%;                 /* Lagoon turquoise */
     --primary-foreground: 0 0% 100%;
-    --secondary: 199 89% 96%;
-    --secondary-foreground: 199 89% 20%;
-    --muted: 199 20% 96%;
-    --muted-foreground: 199 15% 40%;
-    --accent: 199 89% 96%;
-    --accent-foreground: 199 89% 20%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 199 20% 90%;
-    --input: 199 20% 90%;
-    --ring: 199 89% 48%;
-    --chart-1: 199 89% 48%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 210 80% 55%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
-    --sidebar-background: 199 60% 12%;
-    --sidebar-foreground: 199 20% 90%;
-    --sidebar-primary: 199 89% 55%;
+    --secondary: 186 40% 94%;
+    --secondary-foreground: 205 60% 20%;
+    --muted: 40 30% 95%;
+    --muted-foreground: 205 25% 40%;
+    --accent: 12 85% 62%;                   /* Coral sunset */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 200 30% 90%;
+    --input: 200 30% 92%;
+    --ring: 186 78% 42%;
+
+    /* Charts */
+    --chart-1: 186 78% 42%;                 /* Turquoise */
+    --chart-2: 200 70% 55%;                 /* Ocean blue */
+    --chart-3: 175 55% 40%;                 /* Teal */
+    --chart-4: 12 85% 62%;                  /* Coral */
+    --chart-5: 40 90% 65%;                  /* Sand gold */
+
+    --radius: 1rem;
+
+    /* Sidebar (admin) */
+    --sidebar-background: 205 65% 10%;
+    --sidebar-foreground: 200 30% 90%;
+    --sidebar-primary: 186 78% 50%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 199 60% 18%;
-    --sidebar-accent-foreground: 199 20% 95%;
-    --sidebar-border: 199 60% 20%;
-    --sidebar-ring: 199 89% 55%;
+    --sidebar-accent: 205 55% 16%;
+    --sidebar-accent-foreground: 200 30% 95%;
+    --sidebar-border: 205 45% 20%;
+    --sidebar-ring: 186 78% 50%;
+
+    /* Bespoke Maldives palette (raw HEX-ish via HSL) */
+    --lagoon: 186 78% 42%;
+    --lagoon-light: 186 70% 62%;
+    --lagoon-dark: 195 75% 30%;
+    --ocean: 210 80% 20%;
+    --ocean-deep: 215 85% 12%;
+    --coral: 12 85% 62%;
+    --coral-soft: 16 90% 72%;
+    --sand: 40 45% 92%;
+    --sand-warm: 35 55% 88%;
+    --foam: 195 30% 97%;
+    --pearl: 180 15% 96%;
   }
+
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 199 89% 55%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 199 30% 18%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 199 20% 18%;
-    --muted-foreground: 199 10% 65%;
-    --accent: 199 30% 22%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 199 20% 20%;
-    --input: 199 20% 20%;
-    --ring: 199 89% 55%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --background: 210 70% 6%;
+    --foreground: 195 30% 96%;
+    --card: 210 55% 10%;
+    --card-foreground: 195 30% 96%;
+    --popover: 210 55% 10%;
+    --popover-foreground: 195 30% 96%;
+    --primary: 186 78% 55%;
+    --primary-foreground: 210 70% 6%;
+    --secondary: 210 45% 14%;
+    --secondary-foreground: 195 30% 96%;
+    --muted: 210 40% 14%;
+    --muted-foreground: 195 20% 65%;
+    --accent: 12 85% 62%;
+    --accent-foreground: 210 70% 6%;
+    --destructive: 0 65% 45%;
+    --destructive-foreground: 195 30% 96%;
+    --border: 210 40% 18%;
+    --input: 210 40% 18%;
+    --ring: 186 78% 55%;
+    --chart-1: 186 78% 55%;
+    --chart-2: 200 70% 60%;
+    --chart-3: 175 55% 50%;
+    --chart-4: 12 85% 65%;
+    --chart-5: 40 90% 70%;
+    --sidebar-background: 210 70% 6%;
+    --sidebar-foreground: 195 30% 96%;
+    --sidebar-primary: 186 78% 55%;
+    --sidebar-primary-foreground: 210 70% 6%;
+    --sidebar-accent: 210 55% 12%;
+    --sidebar-accent-foreground: 195 30% 96%;
+    --sidebar-border: 210 45% 15%;
+    --sidebar-ring: 186 78% 55%;
   }
 }
 
@@ -126,35 +104,244 @@ body {
   * {
     @apply border-border;
   }
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    text-rendering: optimizeLegibility;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-fraunces), Georgia, serif;
+    font-optical-sizing: auto;
+    letter-spacing: -0.02em;
+  }
+  ::selection {
+    background: hsl(var(--lagoon) / 0.25);
+    color: hsl(var(--ocean));
   }
 }
 
-/* Custom scrollbar styles */
-.scrollbar-thin {
-  scrollbar-width: thin;
+/* ============================================================
+   MYBOAT ORIGINAL UTILITIES
+   ============================================================ */
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .text-pretty { text-wrap: pretty; }
+
+  /* Ocean gradient text — for premium headings */
+  .text-gradient-ocean {
+    background: linear-gradient(120deg, hsl(var(--lagoon)), hsl(var(--ocean-deep)));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .text-gradient-lagoon {
+    background: linear-gradient(120deg, hsl(var(--lagoon-light)), hsl(var(--lagoon)));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Backgrounds */
+  .bg-lagoon { background-color: hsl(var(--lagoon)); }
+  .bg-lagoon-light { background-color: hsl(var(--lagoon-light)); }
+  .bg-lagoon-dark { background-color: hsl(var(--lagoon-dark)); }
+  .bg-ocean { background-color: hsl(var(--ocean)); }
+  .bg-ocean-deep { background-color: hsl(var(--ocean-deep)); }
+  .bg-coral { background-color: hsl(var(--coral)); }
+  .bg-coral-soft { background-color: hsl(var(--coral-soft)); }
+  .bg-sand { background-color: hsl(var(--sand)); }
+  .bg-sand-warm { background-color: hsl(var(--sand-warm)); }
+  .bg-foam { background-color: hsl(var(--foam)); }
+  .bg-pearl { background-color: hsl(var(--pearl)); }
+
+  .text-lagoon { color: hsl(var(--lagoon)); }
+  .text-ocean { color: hsl(var(--ocean)); }
+  .text-ocean-deep { color: hsl(var(--ocean-deep)); }
+  .text-coral { color: hsl(var(--coral)); }
+  .border-lagoon { border-color: hsl(var(--lagoon)); }
+  .border-coral { border-color: hsl(var(--coral)); }
+
+  /* Full ocean gradient background — hero use */
+  .bg-ocean-gradient {
+    background:
+      radial-gradient(1200px 600px at 10% -20%, hsl(var(--lagoon-light) / 0.5), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, hsl(var(--coral) / 0.25), transparent 50%),
+      linear-gradient(180deg, hsl(var(--ocean-deep)) 0%, hsl(var(--ocean)) 45%, hsl(var(--lagoon-dark)) 100%);
+  }
+  .bg-lagoon-gradient {
+    background: linear-gradient(135deg, hsl(var(--lagoon-light)) 0%, hsl(var(--lagoon)) 50%, hsl(var(--lagoon-dark)) 100%);
+  }
+  .bg-sand-gradient {
+    background: linear-gradient(180deg, hsl(var(--sand)) 0%, hsl(var(--foam)) 100%);
+  }
+  .bg-sunset-gradient {
+    background: linear-gradient(135deg, hsl(var(--coral)) 0%, hsl(var(--coral-soft)) 100%);
+  }
+
+  /* Glass morphism — for search cards over hero */
+  .glass {
+    background: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(24px) saturate(140%);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  .glass-white {
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+  }
+  .glass-dark {
+    background: rgba(10, 26, 47, 0.5);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* Premium soft shadows */
+  .shadow-premium {
+    box-shadow:
+      0 1px 2px rgba(15, 42, 71, 0.04),
+      0 8px 24px -6px rgba(15, 42, 71, 0.08),
+      0 24px 60px -20px rgba(15, 42, 71, 0.12);
+  }
+  .shadow-float {
+    box-shadow:
+      0 4px 12px -2px rgba(15, 42, 71, 0.08),
+      0 20px 40px -8px rgba(15, 42, 71, 0.16);
+  }
+  .shadow-lagoon {
+    box-shadow:
+      0 10px 30px -8px hsl(var(--lagoon) / 0.35),
+      0 4px 12px -2px hsl(var(--lagoon) / 0.2);
+  }
+  .shadow-coral {
+    box-shadow:
+      0 10px 30px -8px hsl(var(--coral) / 0.4),
+      0 4px 12px -2px hsl(var(--coral) / 0.25);
+  }
+
+  /* Wave dividers */
+  .wave-divider {
+    --wave-color: hsl(var(--background));
+    background:
+      linear-gradient(var(--wave-color), var(--wave-color)) center bottom / 100% 20% no-repeat,
+      radial-gradient(farthest-side at 50% 100%, var(--wave-color) 100%, transparent) center bottom / 100% 40% no-repeat;
+  }
+
+  /* Section spacing */
+  .section-padding { @apply py-16 md:py-24 lg:py-32; }
+  .container-x { @apply container mx-auto px-4 sm:px-6 lg:px-8; }
+
+  /* Hover lift */
+  .hover-lift { transition: transform 400ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 400ms; }
+  .hover-lift:hover { transform: translateY(-4px); }
+
+  /* Chip / tag */
+  .chip {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium tracking-wide;
+  }
+
+  /* Divider dot */
+  .dot-divider::before {
+    content: "•";
+    @apply mx-2 text-muted-foreground;
+  }
+
+  /* Hide scrollbar visually but keep scroll */
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+
+  /* Animated shimmer for loading */
+  .shimmer {
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  /* Slow drift for background elements */
+  @keyframes drift-slow {
+    0%, 100% { transform: translate3d(0,0,0) rotate(0deg); }
+    50% { transform: translate3d(20px,-15px,0) rotate(2deg); }
+  }
+  .animate-drift { animation: drift-slow 18s ease-in-out infinite; }
+
+  /* Gentle bob (for boats/floating elements) */
+  @keyframes bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+  .animate-bob { animation: bob 4s ease-in-out infinite; }
+
+  /* Ripple */
+  @keyframes ripple {
+    0% { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(2.5); opacity: 0; }
+  }
+  .animate-ripple::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: 0 0 0 2px hsl(var(--lagoon) / 0.5);
+    animation: ripple 2s ease-out infinite;
+  }
 }
 
-/* For Webkit browsers */
-.scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
-}
+/* ============================================================
+   PHONE INPUT (kept but themed)
+   ============================================================ */
 
-.scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
+.PhoneInput { @apply flex items-center gap-2; }
+.PhoneInputCountry {
+  @apply flex items-center gap-1 bg-secondary/60 border border-border rounded-lg px-2 py-1.5;
 }
+.PhoneInputCountrySelect {
+  @apply bg-transparent text-foreground cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary;
+}
+.PhoneInputCountryIcon { @apply w-5 h-4 overflow-hidden rounded; }
+.PhoneInputInput {
+  @apply bg-secondary/40 border border-border text-foreground rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary;
+}
+.PhoneInputInput:disabled { @apply opacity-50 cursor-not-allowed; }
 
+/* ============================================================
+   CUSTOM SCROLLBAR
+   ============================================================ */
+
+.scrollbar-thin { scrollbar-width: thin; }
+.scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: rgba(234, 179, 8, 0.2);
-  border-radius: 3px;
+  background-color: hsl(var(--lagoon) / 0.3);
+  border-radius: 6px;
 }
-
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(234, 179, 8, 0.4);
+  background-color: hsl(var(--lagoon) / 0.6);
+}
+[data-radix-scroll-area-viewport] > div { @apply scrollbar-thin !important; }
+
+/* ============================================================
+   MOBILE OPTIMIZATION
+   ============================================================ */
+
+@media (max-width: 640px) {
+  html { font-size: 15px; }
+  h1 { font-size: clamp(2rem, 8vw, 3.5rem); }
+  h2 { font-size: clamp(1.5rem, 5.5vw, 2.5rem); }
+  input, textarea, select { font-size: 16px; }  /* prevent iOS zoom */
 }
 
-/* Apply custom scrollbar to ScrollArea */
-[data-radix-scroll-area-viewport] > div {
-  @apply scrollbar-thin !important;
-}
+/* Safe area for mobile devices with notches */
+.safe-top { padding-top: env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }

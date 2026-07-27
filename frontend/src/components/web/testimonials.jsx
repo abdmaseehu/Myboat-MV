@@ -1,130 +1,88 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Card, CardContent } from "@/components/ui/card";
-import { Star, Quote } from "lucide-react";
+import { Quote } from "lucide-react";
 
 const testimonials = [
   {
-    id: 1,
-    name: "Priya Patel",
-    image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330",
-    role: "Regular Traveler",
-    rating: 5,
-    comment:
-      "The best ferry service I've ever experienced. Clean boats, punctual service, and very professional staff. Highly recommended!",
+    quote:
+      "Booked our Malé to Maafushi transfer in under a minute. The speedboat was spotless and the crew treated us like guests, not passengers.",
+    author: "Priya P.",
+    location: "Bangalore",
   },
   {
-    id: 2,
-    name: "Arun Sharma",
-    image: "https://images.unsplash.com/photo-1599566150163-29194dcaad36",
-    role: "Business Traveler",
-    rating: 5,
-    comment:
-      "I frequently travel for business, and Myboat MV has been my go-to choice. Their service is reliable and comfortable.",
+    quote:
+      "As someone who lives on Dhigurah, Myboat made scheduling my weekly Malé trips something I don't have to think about anymore.",
+    author: "Arun S.",
+    location: "Dhigurah, Ari",
   },
   {
-    id: 3,
-    name: "Meera Singh",
-    image: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80",
-    role: "Tourist",
-    rating: 4,
-    comment:
-      "Great experience traveling with Myboat MV. The online booking process is smooth, and the journey was comfortable.",
+    quote:
+      "The private charter for our family's honeymoon party was flawless — three quotes within an hour, and the operator was outstanding.",
+    author: "Meera & Karthik",
+    location: "Mumbai",
   },
 ];
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.2,
-    },
-  },
+const container = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.12 } },
 };
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.5,
-    },
-  },
+const item = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } },
 };
 
 export default function Testimonials() {
   return (
-    <section className="py-20 bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-900/50 dark:to-zinc-900">
-      <div className="container mx-auto px-4">
+    <section className="section-padding bg-foam">
+      <div className="container-x">
         <motion.div
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: true }}
-          variants={containerVariants}
-          className="space-y-12"
+          viewport={{ once: true, amount: 0.2 }}
+          variants={container}
+          className="max-w-2xl mx-auto text-center mb-14 md:mb-20"
         >
-          <div className="text-center space-y-4">
-            <motion.h2
-              variants={itemVariants}
-              className="text-3xl md:text-4xl font-bold text-foreground"
-            >
-              What Our
-              <span className="text-sky-500"> Customers Say</span>
-            </motion.h2>
-            <motion.p
-              variants={itemVariants}
-              className="text-lg text-muted-foreground max-w-2xl mx-auto"
-            >
-              Read what our satisfied customers have to say about their
-              experience with our service.
-            </motion.p>
-          </div>
-
-          <motion.div
-            variants={containerVariants}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+          <motion.span variants={item} className="chip bg-white/70 text-ocean-deep uppercase tracking-[0.2em]">
+            Guests say
+          </motion.span>
+          <motion.h2
+            variants={item}
+            className="mt-5 text-4xl md:text-5xl lg:text-6xl font-light text-ocean-deep italic leading-[1.05] text-balance"
           >
-            {testimonials.map((testimonial) => (
-              <motion.div key={testimonial.id} variants={itemVariants}>
-                <Card className="h-full bg-white dark:bg-zinc-900 border-none shadow-lg hover:shadow-xl transition-all duration-300">
-                  <CardContent className="p-6 space-y-4">
-                    <Quote className="h-8 w-8 text-sky-500/50" />
-                    <p className="text-muted-foreground">
-                      {testimonial.comment}
-                    </p>
-                    <div className="flex items-center gap-4 pt-4">
-                      <div className="flex-shrink-0">
-                        <div className="w-12 h-12 rounded-full overflow-hidden">
-                          <div
-                            className="w-full h-full bg-cover bg-center"
-                            style={{
-                              backgroundImage: `url(${testimonial.image})`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="font-semibold text-foreground">
-                          {testimonial.name}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {testimonial.role}
-                        </div>
-                        <div className="flex items-center gap-1 text-sky-500 mt-1">
-                          {[...Array(testimonial.rating)].map((_, i) => (
-                            <Star key={i} className="h-4 w-4 fill-current" />
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </motion.div>
+            Loved by travellers
+            <br />
+            and locals alike.
+          </motion.h2>
+        </motion.div>
+
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.15 }}
+          variants={container}
+          className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6"
+        >
+          {testimonials.map((t, i) => (
+            <motion.figure
+              key={i}
+              variants={item}
+              className="bg-white rounded-3xl p-8 md:p-10 shadow-premium hover-lift border border-border/40 flex flex-col"
+            >
+              <Quote className="h-8 w-8 text-coral/70 mb-6" />
+              <blockquote
+                className="text-xl md:text-[22px] leading-[1.4] text-ocean-deep italic font-light flex-1"
+                style={{ fontFamily: "var(--font-fraunces), Georgia, serif" }}
+              >
+                “{t.quote}”
+              </blockquote>
+              <figcaption className="mt-8 pt-6 border-t border-border/50">
+                <div className="text-ocean-deep font-medium text-sm">{t.author}</div>
+                <div className="text-xs text-muted-foreground tracking-wide uppercase">{t.location}</div>
+              </figcaption>
+            </motion.figure>
+          ))}
         </motion.div>
       </div>
     </section>

@@ -21,7 +21,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -124,9 +123,7 @@ export default function LogisticsPage() {
       reset();
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
-      toast.error(
-        e?.response?.data?.message || e.message || "Failed to submit request"
-      );
+      toast.error(e?.response?.data?.message || e.message || "Failed to submit request");
     } finally {
       setSubmitting(false);
     }
@@ -134,282 +131,215 @@ export default function LogisticsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-sky-500 via-sky-600 to-sky-700 text-white">
-        <div className="absolute inset-0 opacity-20 [background:radial-gradient(circle_at_25%_20%,rgba(255,255,255,0.35),transparent_40%),radial-gradient(circle_at_75%_60%,rgba(255,255,255,0.25),transparent_45%)]" />
-        <div className="container relative mx-auto px-4 py-20 md:py-28">
+      <section className="relative overflow-hidden bg-ocean-gradient text-white isolate">
+        <div
+          className="absolute inset-0 -z-10 bg-cover bg-center opacity-35 mix-blend-overlay"
+          style={{
+            backgroundImage:
+              "url('https://images.unsplash.com/photo-1494412651409-8dd18a7ca6e5?q=80&w=2000&auto=format&fit=crop')",
+          }}
+        />
+        <div className="pointer-events-none absolute -top-32 -left-24 h-96 w-96 rounded-full bg-lagoon-light/25 blur-3xl animate-drift" />
+        <div className="pointer-events-none absolute top-1/3 -right-24 h-96 w-96 rounded-full bg-coral/25 blur-3xl animate-drift" style={{ animationDelay: "-6s" }} />
+
+        <div className="container-x pt-32 md:pt-40 pb-24 md:pb-32 relative">
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.7 }}
             className="max-w-3xl"
           >
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur px-3 py-1 text-xs font-medium mb-5 border border-white/20">
-              <Truck className="h-3.5 w-3.5" />
-              Logistics & Cargo
-            </div>
-            <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-4">
-              Move Cargo Across the Maldives
+            <span className="chip glass text-white uppercase tracking-[0.22em]">
+              <Truck className="h-3 w-3" /> Logistics
+            </span>
+            <h1
+              className="mt-6 text-5xl md:text-7xl lg:text-8xl font-light italic leading-[0.98] text-balance"
+              style={{ fontFamily: "var(--font-fraunces), Georgia, serif" }}
+            >
+              Move cargo,
+              <br />
+              <span className="text-gradient-lagoon not-italic font-normal">island to island.</span>
             </h1>
-            <p className="text-lg md:text-xl text-sky-50/90 max-w-2xl">
-              Bulk goods, supplies, and equipment delivered to any island. Get
-              quotes from trusted logistics operators.
+            <p className="mt-6 text-lg md:text-xl text-white/85 max-w-xl">
+              Bulk goods, supplies, and equipment delivered to any inhabited island. Quotes from trusted logistics operators.
             </p>
-            <div className="flex flex-wrap items-center gap-3 mt-8">
-              <TrustBadge>📦 Any Cargo Type</TrustBadge>
-              <TrustBadge>🚢 Trusted Operators</TrustBadge>
-              <TrustBadge>⚡ Fast Quotes</TrustBadge>
-            </div>
           </motion.div>
         </div>
-        <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-background to-transparent" />
       </section>
 
-      {/* Content */}
-      <section className="container mx-auto px-4 py-12 md:py-16">
+      <section className="container-x -mt-16 md:-mt-24 pb-16 md:pb-24 relative z-10">
         {success ? (
           <SuccessCard user={user} onNew={() => setSuccess(false)} />
         ) : (
-          <div className="grid lg:grid-cols-5 gap-8">
-            {/* Left */}
-            <div className="lg:col-span-2 space-y-6">
-              <Card className="border-sky-500/20">
-                <CardContent className="p-6 space-y-4">
-                  <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400 font-semibold">
-                    <Truck className="h-5 w-5" />
-                    Why ship with Myboat?
-                  </div>
-                  <ul className="space-y-3 text-sm">
-                    {[
-                      "Handle any cargo — bulk, fragile, refrigerated",
-                      "Reach any inhabited island in the Maldives",
-                      "Compare quotes from vetted operators",
-                      "Simple, transparent pricing — no surprises",
-                    ].map((t) => (
-                      <li key={t} className="flex items-start gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-sky-500 mt-0.5 shrink-0" />
-                        <span className="text-muted-foreground">{t}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-              <Card className="bg-gradient-to-br from-sky-50 to-white dark:from-sky-950/40 dark:to-transparent border-sky-500/20">
-                <CardContent className="p-6 space-y-2">
-                  <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400 font-semibold">
-                    <Ship className="h-5 w-5" />
-                    Every operator vetted
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Our logistics partners carry proper permits and insurance so
-                    your cargo is handled with care.
-                  </p>
-                </CardContent>
-              </Card>
+          <div className="grid lg:grid-cols-5 gap-6 md:gap-8">
+            <div className="lg:col-span-2 space-y-6 lg:sticky lg:top-28 lg:self-start">
+              <div className="glass-white rounded-3xl p-8 shadow-premium">
+                <div className="flex items-center gap-2 text-lagoon font-medium mb-4">
+                  <Truck className="h-5 w-5" />
+                  Why ship with Myboat?
+                </div>
+                <ul className="space-y-3 text-sm">
+                  {[
+                    "Handle any cargo — bulk, fragile, refrigerated",
+                    "Reach any inhabited island in the Maldives",
+                    "Compare quotes from vetted operators",
+                    "Simple, transparent pricing — no surprises",
+                  ].map((t) => (
+                    <li key={t} className="flex items-start gap-2.5">
+                      <CheckCircle2 className="h-4 w-4 text-lagoon mt-0.5 shrink-0" />
+                      <span className="text-ocean/80">{t}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="bg-sunset-gradient text-white rounded-3xl p-8 shadow-premium">
+                <div className="flex items-center gap-2 font-medium mb-2">
+                  <Ship className="h-5 w-5" />
+                  Every operator vetted
+                </div>
+                <p className="text-sm text-white/90 leading-relaxed">
+                  Our logistics partners carry proper permits and insurance so your cargo is handled with care.
+                </p>
+              </div>
             </div>
 
-            {/* Right: form */}
             <div className="lg:col-span-3">
-              <Card>
-                <CardContent className="p-6 md:p-8">
-                  <div className="mb-6">
-                    <h2 className="text-2xl font-bold mb-1">
-                      Request cargo quotes
-                    </h2>
-                    <p className="text-sm text-muted-foreground">
-                      Describe your shipment — operators respond with quotes
-                      quickly.
-                    </p>
-                    {!user && (
-                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
-                        You&apos;ll need to log in to submit — we&apos;ll take
-                        you there when you click submit.
-                      </p>
-                    )}
-                  </div>
-
-                  <form
-                    onSubmit={handleSubmit(onSubmit)}
-                    className="space-y-8"
+              <div className="glass-white rounded-3xl shadow-premium p-6 md:p-10">
+                <div className="mb-8">
+                  <h2
+                    className="text-3xl md:text-4xl italic font-light text-ocean-deep leading-tight"
+                    style={{ fontFamily: "var(--font-fraunces), Georgia, serif" }}
                   >
-                    <FormSection title="Trip Details" icon={MapPin}>
-                      <FormRow>
-                        <Field
-                          label="From"
-                          required
-                          error={errors.origin?.message}
-                        >
-                          <Input
-                            placeholder="Origin island e.g. Male"
-                            {...register("origin")}
-                          />
-                        </Field>
-                        <Field
-                          label="To"
-                          required
-                          error={errors.destination?.message}
-                        >
-                          <Input
-                            placeholder="Destination island"
-                            {...register("destination")}
-                          />
-                        </Field>
-                      </FormRow>
-                      <FormRow>
-                        <Field
-                          label="Trip Date"
-                          required
-                          error={errors.tripDate?.message}
-                        >
-                          <Input
-                            type="date"
-                            min={today()}
-                            {...register("tripDate")}
-                          />
-                        </Field>
-                        <div />
-                      </FormRow>
-                    </FormSection>
+                    Request cargo quotes
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Describe your shipment — operators respond with quotes quickly.
+                  </p>
+                  {!user && (
+                    <p className="text-xs text-coral mt-3">
+                      You&apos;ll need to log in to submit.
+                    </p>
+                  )}
+                </div>
 
-                    <FormSection title="Cargo Details" icon={Package}>
-                      <Field
-                        label="Cargo Type"
-                        required
-                        error={errors.cargoType?.message}
-                      >
-                        <Controller
-                          control={control}
-                          name="cargoType"
-                          render={({ field }) => (
-                            <Select
-                              value={field.value}
-                              onValueChange={field.onChange}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select cargo type" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {CARGO_TYPES.map((t) => (
-                                  <SelectItem key={t} value={t}>
-                                    {t}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+                  <FormSection title="Trip Details" icon={MapPin}>
+                    <FormRow>
+                      <Field label="From" required error={errors.origin?.message}>
+                        <StyledInput placeholder="Origin island e.g. Malé" {...register("origin")} />
                       </Field>
-                      <FormRow>
-                        <Field label="Weight (kg)" hint="Optional">
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.1"
-                            {...register("weightKg")}
-                          />
-                        </Field>
-                        <Field label="Volume (m³)" hint="Optional">
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.1"
-                            {...register("volumeM3")}
-                          />
-                        </Field>
-                      </FormRow>
-                      <Field
-                        label="Cargo Description"
-                        required
-                        error={errors.cargoDescription?.message}
-                      >
-                        <Textarea
-                          rows={4}
-                          placeholder="Describe what you're shipping..."
-                          {...register("cargoDescription")}
-                        />
+                      <Field label="To" required error={errors.destination?.message}>
+                        <StyledInput placeholder="Destination island" {...register("destination")} />
                       </Field>
-                    </FormSection>
-
-                    <FormSection title="Contact Details" icon={User}>
-                      <FormRow>
-                        <Field
-                          label="Full Name"
-                          required
-                          error={errors.guestName?.message}
-                        >
-                          <Input {...register("guestName")} />
-                        </Field>
-                        <Field
-                          label="Email"
-                          required
-                          error={errors.guestEmail?.message}
-                        >
-                          <Input type="email" {...register("guestEmail")} />
-                        </Field>
-                      </FormRow>
-                      <FormRow>
-                        <Field label="Phone" hint="Recommended">
-                          <Input {...register("guestPhone")} />
-                        </Field>
-                        <div />
-                      </FormRow>
-                    </FormSection>
-
-                    <FormSection title="Additional Info" icon={Sparkles}>
-                      <Field label="Special Requirements">
-                        <Textarea
-                          rows={3}
-                          placeholder="e.g. refrigeration, careful handling, loading assistance..."
-                          {...register("specialRequirements")}
-                        />
+                    </FormRow>
+                    <FormRow>
+                      <Field label="Trip Date" required error={errors.tripDate?.message}>
+                        <StyledInput type="date" min={today()} {...register("tripDate")} />
                       </Field>
-                    </FormSection>
+                      <div />
+                    </FormRow>
+                  </FormSection>
 
-                    <Button
-                      type="submit"
-                      disabled={submitting}
-                      className="w-full h-12 text-base bg-sky-500 hover:bg-sky-600 text-white"
-                    >
-                      {!user
-                        ? "Log In to Request Quotes"
-                        : submitting
-                        ? "Submitting..."
-                        : "Request Quotes"}
-                      <ArrowRight className="h-4 w-4 ml-2" />
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
+                  <FormSection title="Cargo" icon={Package}>
+                    <Field label="Cargo Type" required error={errors.cargoType?.message}>
+                      <Controller
+                        control={control}
+                        name="cargoType"
+                        render={({ field }) => (
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <SelectTrigger className="h-12 rounded-2xl border-border/60 bg-white">
+                              <SelectValue placeholder="Select cargo type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {CARGO_TYPES.map((t) => (
+                                <SelectItem key={t} value={t}>{t}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                    </Field>
+                    <FormRow>
+                      <Field label="Weight (kg)" hint="Optional">
+                        <StyledInput type="number" min="0" step="0.1" {...register("weightKg")} />
+                      </Field>
+                      <Field label="Volume (m³)" hint="Optional">
+                        <StyledInput type="number" min="0" step="0.1" {...register("volumeM3")} />
+                      </Field>
+                    </FormRow>
+                    <Field label="Cargo Description" required error={errors.cargoDescription?.message}>
+                      <Textarea
+                        rows={4}
+                        placeholder="Describe what you're shipping..."
+                        className="rounded-2xl border-border/60 bg-white"
+                        {...register("cargoDescription")}
+                      />
+                    </Field>
+                  </FormSection>
+
+                  <FormSection title="Contact" icon={User}>
+                    <FormRow>
+                      <Field label="Full Name" required error={errors.guestName?.message}>
+                        <StyledInput {...register("guestName")} />
+                      </Field>
+                      <Field label="Email" required error={errors.guestEmail?.message}>
+                        <StyledInput type="email" {...register("guestEmail")} />
+                      </Field>
+                    </FormRow>
+                    <FormRow>
+                      <Field label="Phone" hint="Recommended">
+                        <StyledInput {...register("guestPhone")} />
+                      </Field>
+                      <div />
+                    </FormRow>
+                  </FormSection>
+
+                  <FormSection title="Additional" icon={Sparkles}>
+                    <Field label="Special Requirements">
+                      <Textarea
+                        rows={3}
+                        placeholder="e.g. refrigeration, careful handling, loading assistance..."
+                        className="rounded-2xl border-border/60 bg-white"
+                        {...register("specialRequirements")}
+                      />
+                    </Field>
+                  </FormSection>
+
+                  <Button
+                    type="submit"
+                    disabled={submitting}
+                    className="w-full h-14 text-base bg-coral hover:bg-coral-soft text-white rounded-full shadow-coral tracking-wide"
+                  >
+                    {!user
+                      ? "Log In to Request Quotes"
+                      : submitting
+                      ? "Submitting..."
+                      : "Request Quotes"}
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </form>
+              </div>
             </div>
           </div>
         )}
       </section>
 
-      {/* How it works */}
-      <section className="bg-muted/30 border-t">
-        <div className="container mx-auto px-4 py-16">
-          <div className="text-center max-w-2xl mx-auto mb-12">
-            <h2 className="text-3xl font-bold mb-3">How it works</h2>
-            <p className="text-muted-foreground">
-              From dock to destination in three easy steps.
-            </p>
+      <section className="section-padding bg-foam">
+        <div className="container-x">
+          <div className="max-w-2xl mx-auto text-center mb-14">
+            <span className="chip bg-white text-lagoon uppercase tracking-[0.2em]">Process</span>
+            <h2
+              className="mt-5 text-4xl md:text-5xl italic font-light text-ocean-deep leading-tight"
+              style={{ fontFamily: "var(--font-fraunces), Georgia, serif" }}
+            >
+              From dock to destination.
+            </h2>
           </div>
-          <div className="grid md:grid-cols-3 gap-6">
-            <Step
-              icon="📦"
-              title="Describe your cargo"
-              desc="Tell us what, where, and when."
-            />
-            <Step
-              icon="💬"
-              title="Compare operator quotes"
-              desc="Get pricing from multiple logistics partners."
-            />
-            <Step
-              icon="✅"
-              title="Ship with confidence"
-              desc="Choose the right operator and track your shipment."
-            />
+          <div className="grid md:grid-cols-3 gap-5 md:gap-6">
+            <Step n="01" title="Describe your cargo" desc="Tell us what, where, and when." />
+            <Step n="02" title="Compare operator quotes" desc="Get pricing from multiple logistics partners." />
+            <Step n="03" title="Ship with confidence" desc="Choose the right operator and track your shipment." />
           </div>
         </div>
       </section>
@@ -417,20 +347,21 @@ export default function LogisticsPage() {
   );
 }
 
-function TrustBadge({ children }) {
+function StyledInput(props) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-white/15 backdrop-blur border border-white/20 px-3 py-1.5 text-xs md:text-sm font-medium">
-      {children}
-    </span>
+    <Input
+      {...props}
+      className="h-12 rounded-2xl border-border/60 bg-white text-ocean-deep placeholder:text-muted-foreground focus-visible:ring-lagoon"
+    />
   );
 }
 
 function FormSection({ title, icon: Icon, children }) {
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 pb-2 border-b">
-        {Icon && <Icon className="h-4 w-4 text-sky-500" />}
-        <h3 className="text-sm font-semibold text-sky-700 dark:text-sky-300 uppercase tracking-wide">
+      <div className="flex items-center gap-2 pb-2 border-b border-border/50">
+        {Icon && <Icon className="h-4 w-4 text-lagoon" />}
+        <h3 className="text-[11px] font-medium text-ocean-deep uppercase tracking-[0.22em]">
           {title}
         </h3>
       </div>
@@ -446,12 +377,12 @@ function FormRow({ children }) {
 function Field({ label, required, hint, error, children }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs font-medium">
-        {label} {required && <span className="text-rose-500">*</span>}
+      <Label className="text-xs font-medium text-ocean-deep">
+        {label} {required && <span className="text-coral">*</span>}
       </Label>
       {children}
       {error ? (
-        <p className="text-[11px] text-rose-500">{error}</p>
+        <p className="text-[11px] text-coral">{error}</p>
       ) : hint ? (
         <p className="text-[11px] text-muted-foreground">{hint}</p>
       ) : null}
@@ -459,60 +390,49 @@ function Field({ label, required, hint, error, children }) {
   );
 }
 
-function Step({ icon, title, desc }) {
+function Step({ n, title, desc }) {
   return (
-    <Card className="border-sky-500/10">
-      <CardContent className="p-6 text-center space-y-2">
-        <div className="text-4xl mb-2">{icon}</div>
-        <div className="font-semibold">{title}</div>
-        <div className="text-sm text-muted-foreground">{desc}</div>
-      </CardContent>
-    </Card>
+    <div className="bg-white rounded-3xl p-8 shadow-premium border border-border/40 hover-lift">
+      <div className="text-coral text-sm font-medium tracking-[0.3em] mb-3">{n}</div>
+      <div className="text-xl text-ocean-deep font-medium mb-2">{title}</div>
+      <div className="text-sm text-muted-foreground leading-relaxed">{desc}</div>
+    </div>
   );
 }
 
 function SuccessCard({ user, onNew }) {
   return (
     <div className="max-w-2xl mx-auto">
-      <Card className="border-emerald-500/30 bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/40 dark:to-transparent">
-        <CardContent className="p-8 md:p-10 text-center space-y-5">
-          <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/15 flex items-center justify-center">
-            <CheckCircle2 className="h-9 w-9 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-3xl font-bold">Request Submitted!</h2>
-            <p className="text-muted-foreground">
-              You&apos;ll receive quotes from logistics operators shortly. Check
-              your email or track responses from your account.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3 justify-center pt-2">
-            {user ? (
-              <Button
-                asChild
-                className="bg-sky-500 hover:bg-sky-600 text-white"
-              >
-                <Link href="/users/my-requests">View My Requests</Link>
-              </Button>
-            ) : (
-              <>
-                <p className="text-xs text-amber-600 dark:text-amber-400 w-full">
-                  Log in to track your requests and accept quotes.
-                </p>
-                <Button
-                  asChild
-                  className="bg-sky-500 hover:bg-sky-600 text-white"
-                >
-                  <Link href="/auth/login">Log In</Link>
-                </Button>
-              </>
-            )}
-            <Button variant="outline" onClick={onNew}>
-              Submit Another
+      <div className="bg-white rounded-3xl shadow-premium p-8 md:p-12 text-center space-y-6 border border-lagoon/20">
+        <div className="mx-auto w-16 h-16 rounded-full bg-lagoon/10 flex items-center justify-center">
+          <CheckCircle2 className="h-9 w-9 text-lagoon" />
+        </div>
+        <div className="space-y-2">
+          <h2
+            className="text-3xl md:text-4xl italic font-light text-ocean-deep"
+            style={{ fontFamily: "var(--font-fraunces), Georgia, serif" }}
+          >
+            Request submitted!
+          </h2>
+          <p className="text-muted-foreground">
+            You&apos;ll receive quotes from logistics operators shortly.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3 justify-center pt-2">
+          {user ? (
+            <Button asChild className="bg-lagoon hover:bg-lagoon-dark text-white rounded-full h-12 px-6">
+              <Link href="/users/my-requests">View My Requests</Link>
             </Button>
-          </div>
-        </CardContent>
-      </Card>
+          ) : (
+            <Button asChild className="bg-lagoon hover:bg-lagoon-dark text-white rounded-full h-12 px-6">
+              <Link href="/auth/login">Log In</Link>
+            </Button>
+          )}
+          <Button variant="outline" onClick={onNew} className="rounded-full h-12 px-6 border-border">
+            Submit Another
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

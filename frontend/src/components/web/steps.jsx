@@ -1,174 +1,99 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
-import { Card, CardContent } from "@/components/ui/card";
-import { MapPin, Clock, CreditCard } from "lucide-react";
-import { useCustomFields } from "@/hooks/use-custom-fields";
+import { ArrowRight } from "lucide-react";
 
-const defaultSteps = [
+const services = [
   {
-    icon: <MapPin className="h-6 w-6 text-sky-500" />,
-    title: "Choose Destination",
-    description:
-      "Select your departure and arrival locations from our wide network of routes.",
-    color: "bg-blue-500",
+    title: "Scheduled Ferry",
+    tag: "Everyday transport",
+    desc: "Public and speedboat ferry connections between islands — book a seat in seconds.",
+    image:
+      "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?q=80&w=1600&auto=format&fit=crop",
+    href: "/bus-tickets",
+    cta: "Search ferries",
   },
   {
-    icon: <Clock className="h-6 w-6 text-sky-500" />,
-    title: "Pick Your Time",
-    description:
-      "Choose from multiple departure times that best suit your schedule.",
-    color: "bg-green-500",
+    title: "Private Charter",
+    tag: "Sea, on your terms",
+    desc: "Rent a speedboat or dhoni for the day. Custom itineraries, verified operators, transparent quotes.",
+    image:
+      "https://images.unsplash.com/photo-1548574505-5e239809ee19?q=80&w=1600&auto=format&fit=crop",
+    href: "/charter",
+    cta: "Book a charter",
   },
   {
-    icon: <CreditCard className="h-6 w-6 text-sky-500" />,
-    title: "Make Payment",
-    description: "Secure your booking with our safe and easy payment options.",
-    color: "bg-sky-500",
+    title: "Logistics",
+    tag: "Cargo, delivered",
+    desc: "Ship supplies, equipment, and bulk cargo to any inhabited island in the Maldives.",
+    image:
+      "https://images.unsplash.com/photo-1494412651409-8dd18a7ca6e5?q=80&w=1600&auto=format&fit=crop",
+    href: "/logistics",
+    cta: "Request logistics",
   },
 ];
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.3,
-    },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, x: -50 },
-  visible: {
-    opacity: 1,
-    x: 0,
-    transition: {
-      duration: 0.5,
-    },
-  },
-};
-
 export default function Steps() {
-  const [steps, setSteps] = useState(defaultSteps);
-  const [title, setTitle] = useState("Book Your Ticket in 3 Easy Steps");
-  const [subTitle, setSubTitle] = useState(
-    "Follow these simple steps to book your ferry ticket and start your journey."
-  );
-  const { getFieldByName } = useCustomFields();
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchSteps = async () => {
-      try {
-        const data = await getFieldByName("ticket_in_3_easy_steps");
-        console.log("Ticket in 3 Easy Steps Data:", data);
-
-        if (!isMounted) return;
-
-        // Update title and subtitle
-        setTitle(data.title || title);
-        setSubTitle(data.sub_title || subTitle);
-
-        // Update steps with the exact response structure
-        const customSteps = [
-          {
-            icon: <MapPin className="h-6 w-6 text-sky-500" />,
-            title: data.choose_destination || defaultSteps[0].title,
-            description:
-              data.choose_destination_title || defaultSteps[0].description,
-            color: "bg-blue-500",
-          },
-          {
-            icon: <Clock className="h-6 w-6 text-sky-500" />,
-            title: data.pick_your_time || defaultSteps[1].title,
-            description:
-              data.pick_your_time_title || defaultSteps[1].description,
-            color: "bg-green-500",
-          },
-          {
-            icon: <CreditCard className="h-6 w-6 text-sky-500" />,
-            title: data.make_payment || defaultSteps[2].title,
-            description: data.make_payment_title || defaultSteps[2].description,
-            color: "bg-sky-500",
-          },
-        ];
-        setSteps(customSteps);
-      } catch (error) {
-        console.error("Error fetching steps:", error);
-      }
-    };
-
-    fetchSteps();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []); // Empty dependency array
-
   return (
-    <section className="py-20 bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-900/50 dark:to-zinc-900">
-      <div className="container mx-auto px-4">
-        <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          variants={containerVariants}
-          className="space-y-12"
-        >
-          <div className="text-center space-y-4">
-            <motion.h2
-              variants={itemVariants}
-              className="text-3xl md:text-4xl font-bold text-foreground"
-            >
-              {title}
-            </motion.h2>
-            <motion.p
-              variants={itemVariants}
-              className="text-lg text-muted-foreground max-w-2xl mx-auto"
-            >
-              {subTitle}
-            </motion.p>
-          </div>
+    <section className="section-padding bg-background">
+      <div className="container-x">
+        <div className="max-w-2xl mb-14 md:mb-20">
+          <span className="chip bg-lagoon/10 text-lagoon uppercase tracking-[0.2em]">Services</span>
+          <h2 className="mt-5 text-4xl md:text-5xl lg:text-6xl font-light text-ocean-deep italic leading-[1.05] text-balance">
+            Three ways to
+            <br />
+            <span className="text-gradient-ocean not-italic font-normal">move by sea.</span>
+          </h2>
+        </div>
 
-          <motion.div
-            variants={containerVariants}
-            className="grid grid-cols-1 md:grid-cols-3 gap-8"
-          >
-            {steps.map((step, index) => (
-              <motion.div key={index} variants={itemVariants}>
-                <Card className="relative h-full bg-white dark:bg-zinc-900 border-none shadow-lg hover:shadow-xl transition-shadow duration-300">
-                  <CardContent className="p-6">
-                    <div className="flex items-start gap-4">
-                      <div className="flex-shrink-0">
-                        <div className="w-12 h-12 rounded-full bg-sky-500/10 flex items-center justify-center">
-                          {step.icon}
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`w-8 h-8 rounded-full ${step.color} text-white flex items-center justify-center text-sm font-bold`}
-                          >
-                            {index + 1}
-                          </span>
-                          <h3 className="text-xl font-semibold text-foreground">
-                            {step.title}
-                          </h3>
-                        </div>
-                        <p className="text-muted-foreground">
-                          {step.description}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </motion.div>
-        </motion.div>
+        <div className="space-y-16 md:space-y-24">
+          {services.map((s, i) => (
+            <motion.div
+              key={s.title}
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+              className={`grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-14 items-center ${
+                i % 2 === 1 ? "md:[&>div:first-child]:order-2" : ""
+              }`}
+            >
+              <div>
+                <div className="relative rounded-[2rem] overflow-hidden aspect-[5/4] shadow-premium">
+                  <img
+                    src={s.image}
+                    alt={s.title}
+                    loading="lazy"
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-tr from-ocean-deep/20 to-transparent" />
+                </div>
+              </div>
+              <div className="max-w-md">
+                <span className="text-xs uppercase tracking-[0.22em] text-coral font-medium">
+                  {s.tag}
+                </span>
+                <h3
+                  className="mt-3 text-3xl md:text-5xl italic font-light text-ocean-deep leading-[1.05]"
+                  style={{ fontFamily: "var(--font-fraunces), Georgia, serif" }}
+                >
+                  {s.title}
+                </h3>
+                <p className="mt-5 text-lg text-muted-foreground leading-relaxed">
+                  {s.desc}
+                </p>
+                <Link
+                  href={s.href}
+                  className="mt-8 inline-flex items-center gap-2 text-coral hover:text-coral-soft font-medium tracking-wide group"
+                >
+                  {s.cta}
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </Link>
+              </div>
+            </motion.div>
+          ))}
+        </div>
       </div>
     </section>
   );

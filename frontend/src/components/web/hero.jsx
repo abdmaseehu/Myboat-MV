@@ -1,144 +1,125 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Clock, Star, Shield, Ship } from "lucide-react";
-import SearchForm from "@/components/web/bus-tickets/search-form";
-import { useCustomFields } from "@/hooks/use-custom-fields";
+import { Sparkles, ArrowRight, Anchor } from "lucide-react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+
+const container = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.14, delayChildren: 0.15 } },
+};
+const item = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } },
+};
 
 export default function Hero() {
-  const [heroData, setHeroData] = useState(null);
-  const { getFieldByName } = useCustomFields();
-
-  // Memoize the fetch function to prevent recreation on each render
-  const fetchHeroData = useCallback(async () => {
-    try {
-      const response = await getFieldByName("hero_section");
-      setHeroData(response);
-    } catch (error) {
-      console.error("Error fetching hero data:", error);
-    }
-  }, []); // Empty dependency array since getFieldByName is stable
-
-  // Only fetch on mount
-  useEffect(() => {
-    fetchHeroData();
-  }, [fetchHeroData]);
-
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-b from-zinc-900 to-zinc-800">
-      {/* Background Image with Parallax Effect */}
-      <motion.div
-        initial={{ scale: 1.1 }}
-        animate={{ scale: 1 }}
-        transition={{
-          duration: 10,
-          repeat: Number.POSITIVE_INFINITY,
-          repeatType: "reverse",
+    <section className="relative isolate min-h-[92vh] md:min-h-screen flex items-end md:items-center overflow-hidden bg-ocean-gradient text-white">
+      {/* Background image overlay */}
+      <div
+        className="absolute inset-0 -z-10 bg-cover bg-center opacity-45 mix-blend-overlay"
+        style={{
+          backgroundImage:
+            "url('https://images.unsplash.com/photo-1514282401047-d79a71a590e8?q=80&w=2000&auto=format&fit=crop')",
         }}
-        className="absolute inset-0 z-0"
-      >
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage: heroData?.hero_bg
-              ? `url('${process.env.NEXT_PUBLIC_ROOT_URL}/uploads/${heroData.hero_bg}')`
-              : "url('https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?q=80&w=2069&auto=format&fit=crop')",
-          }}
-        >
-          <div className="absolute inset-0 bg-black/60" />
-        </div>
-      </motion.div>
+        aria-hidden="true"
+      />
+      {/* Subtle darken at top so header stays readable */}
+      <div className="absolute inset-x-0 top-0 h-40 -z-10 bg-gradient-to-b from-ocean-deep/70 to-transparent" />
 
-      <div className="container mx-auto px-4 z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          {/* Text Content */}
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="text-white space-y-8"
-          >
-            <h1 className="text-4xl md:text-6xl font-bold leading-tight">
-              {heroData?.title || "Begin Your Journey with Comfort & Style"}
-            </h1>
-            <p className="text-lg md:text-xl text-gray-300">
-              {heroData?.sub_title ||
-                "Experience hassle-free sea travel with our premium service. Book tickets instantly, travel comfortably, and reach your destination safely."}
-            </p>
-
-            {/* Features Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-              <div className="flex items-start gap-3">
-                <div className="p-2 rounded-lg bg-sky-500/10">
-                  <Clock className="h-5 w-5 text-sky-500" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-white">
-                    {heroData?.["247_support"] || "24/7 Support"}
-                  </h3>
-                  <p className="text-sm text-gray-300">
-                    {heroData?.["247_support_sub"] ||
-                      "Round-the-clock customer assistance"}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="p-2 rounded-lg bg-sky-500/10">
-                  <Star className="h-5 w-5 text-sky-500" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-white">
-                    {heroData?.premium_service || "Premium Services"}
-                  </h3>
-                  <p className="text-sm text-gray-300">
-                    {heroData?.premium_service_sub ||
-                      "Luxury boats with amenities"}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="p-2 rounded-lg bg-sky-500/10">
-                  <Shield className="h-5 w-5 text-sky-500" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-white">
-                    {heroData?.secure_booking || "Secure Booking"}
-                  </h3>
-                  <p className="text-sm text-gray-300">
-                    {heroData?.secure_booking_sub ||
-                      "Safe & easy payment options"}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="p-2 rounded-lg bg-sky-500/10">
-                  <Ship className="h-5 w-5 text-sky-500" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-white">
-                    {heroData?.wide_network || "Wide Network"}
-                  </h3>
-                  <p className="text-sm text-gray-300">
-                    {heroData?.wide_network_sub ||
-                      "Multiple routes & destinations"}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Booking Form */}
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 md:p-8"
-          >
-            <SearchForm />
-          </motion.div>
-        </div>
+      {/* Floating soft blobs */}
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute -top-24 -left-20 h-[420px] w-[420px] rounded-full bg-lagoon-light/20 blur-3xl animate-drift" />
+        <div className="absolute top-1/3 -right-32 h-[500px] w-[500px] rounded-full bg-coral/20 blur-3xl animate-drift" style={{ animationDelay: "-6s" }} />
+        <div className="absolute -bottom-40 left-1/3 h-[380px] w-[380px] rounded-full bg-lagoon/25 blur-3xl animate-drift" style={{ animationDelay: "-12s" }} />
       </div>
+
+      {/* Content */}
+      <div className="container-x pt-32 md:pt-24 pb-16 md:pb-32 w-full">
+        <motion.div
+          variants={container}
+          initial="hidden"
+          animate="visible"
+          className="max-w-4xl mx-auto text-center"
+        >
+          {/* Pre-title chip */}
+          <motion.div variants={item} className="flex justify-center">
+            <span className="chip glass text-white text-[11px] uppercase tracking-[0.22em]">
+              <Sparkles className="h-3 w-3" /> Maldives Sea Marketplace
+            </span>
+          </motion.div>
+
+          {/* Headline */}
+          <motion.h1
+            variants={item}
+            className="mt-6 text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-light leading-[0.98] text-balance"
+            style={{ fontFamily: "var(--font-fraunces), Georgia, serif", fontStyle: "italic" }}
+          >
+            Sail the Maldives,
+            <br />
+            <span className="text-gradient-lagoon not-italic font-normal" style={{ WebkitTextStroke: "0" }}>
+              effortlessly.
+            </span>
+          </motion.h1>
+
+          {/* Sub */}
+          <motion.p
+            variants={item}
+            className="mt-6 md:mt-8 text-base md:text-xl text-white/85 max-w-2xl mx-auto leading-relaxed"
+          >
+            Ferries, private charters, and cargo across 1,192 islands.
+            Verified operators. Instant confirmations.
+          </motion.p>
+
+          {/* CTA row (visible on mobile above search) */}
+          <motion.div
+            variants={item}
+            className="mt-8 flex flex-wrap items-center justify-center gap-3 md:hidden"
+          >
+            <Button
+              asChild
+              className="bg-coral hover:bg-coral-soft text-white rounded-full h-12 px-6 shadow-coral tracking-wide"
+            >
+              <Link href="/bus-tickets">
+                Book a ferry <ArrowRight className="h-4 w-4 ml-1.5" />
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              className="bg-white/10 border-white/30 text-white hover:bg-white/20 hover:text-white rounded-full h-12 px-6 backdrop-blur"
+            >
+              <Link href="/charter">
+                <Anchor className="h-4 w-4 mr-1.5" /> Charter
+              </Link>
+            </Button>
+          </motion.div>
+
+          {/* Trust row */}
+          <motion.div
+            variants={item}
+            className="mt-10 md:mt-12 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-xs md:text-sm text-white/70"
+          >
+            <span className="inline-flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-lagoon-light" />
+              1,192 islands
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-lagoon-light" />
+              200+ verified operators
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-lagoon-light" />
+              Book in 60 seconds
+            </span>
+          </motion.div>
+        </motion.div>
+      </div>
+
+      {/* Wave-ish soft fade to next section */}
+      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-b from-transparent to-background pointer-events-none" />
     </section>
   );
 }

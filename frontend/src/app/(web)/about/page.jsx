@@ -18,7 +18,7 @@ export default function AboutPage() {
       initial="initial"
       animate="animate"
       variants={pageVariants}
-      className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-sky-50 dark:from-zinc-900 dark:via-zinc-900 dark:to-zinc-800"
+      className="min-h-screen bg-sand-gradient"
     >
       <AboutHero />
       <Stats />

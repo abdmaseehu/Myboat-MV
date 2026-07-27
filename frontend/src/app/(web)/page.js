@@ -1,31 +1,29 @@
-import Hero from '@/components/web/hero'
-import Features from '@/components/web/features'
-import Steps from '@/components/web/steps'
-import SummerTrips from '@/components/web/summer-trips'
-import WhyChooseUs from '@/components/web/why-choose-us'
-import DriversTeam from '@/components/web/drivers-team'
-import Stats from '@/components/web/stats'
-import Testimonials from '@/components/web/testimonials'
-import Blog from '@/components/web/blog'
+import Hero from "@/components/web/hero";
+import HomeSearchCard from "@/components/web/home-search-card";
+import Features from "@/components/web/features";
+import SummerTrips from "@/components/web/summer-trips";
+import Steps from "@/components/web/steps";
+import Testimonials from "@/components/web/testimonials";
+import Blog from "@/components/web/blog";
 
 export const metadata = {
-  title: 'Myboat MV - Book Maldives Ferry & Speedboat Tickets',
-  description: 'Book ferry, speedboat, and private charter tickets across the Maldives. Fast, reliable sea transport booking.',
-  keywords: 'maldives ferry, speedboat booking, boat tickets, sea travel maldives, myboat',
-}
+  title: "Myboat MV — Sail the Maldives, effortlessly",
+  description:
+    "Ferries, private charters, and cargo across the 1,192 islands of the Maldives. Verified operators, tiered pricing, and instant confirmations.",
+  keywords:
+    "maldives ferry, speedboat booking, private charter maldives, myboat, sea travel maldives",
+};
 
 export default function HomePage() {
   return (
     <>
       <Hero />
+      <HomeSearchCard />
       <Features />
-      <Steps />
       <SummerTrips />
-      <WhyChooseUs />
-      <DriversTeam />
-      <Stats />
+      <Steps />
       <Testimonials />
       <Blog />
     </>
-  )
+  );
 }

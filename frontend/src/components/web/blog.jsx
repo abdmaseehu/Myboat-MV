@@ -1,145 +1,61 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ArrowRight } from "lucide-react";
-
-const posts = [
-  {
-    id: 1,
-    title: "Top 10 Tourist Destinations You Must Visit",
-    excerpt:
-      "Discover the most beautiful and popular tourist spots across the Maldives that you shouldn't miss.",
-    image: "https://images.unsplash.com/photo-1501785888041-af3ef285b470",
-    category: "Travel Guide",
-    date: "Mar 15, 2024",
-    readTime: "5 min read",
-  },
-  {
-    id: 2,
-    title: "Essential Tips for Comfortable Sea Travel",
-    excerpt:
-      "Make your sea journey more comfortable with these practical tips and tricks for long-distance travel.",
-    image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957",
-    category: "Travel Tips",
-    date: "Mar 12, 2024",
-    readTime: "4 min read",
-  },
-  {
-    id: 3,
-    title: "Planning Your Summer Vacation: A Complete Guide",
-    excerpt:
-      "Everything you need to know about planning the perfect summer vacation, from booking to packing.",
-    image: "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1",
-    category: "Planning",
-    date: "Mar 10, 2024",
-    readTime: "6 min read",
-  },
-];
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.2,
-    },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.5,
-    },
-  },
-};
+import { ArrowRight, Anchor } from "lucide-react";
 
 export default function Blog() {
   return (
-    <section className="py-20 bg-white dark:bg-zinc-900">
-      <div className="container mx-auto px-4">
+    <section className="relative section-padding overflow-hidden bg-ocean-gradient text-white isolate">
+      {/* Overlay image + blobs */}
+      <div
+        className="absolute inset-0 -z-10 bg-cover bg-center opacity-25 mix-blend-overlay"
+        style={{
+          backgroundImage:
+            "url('https://images.unsplash.com/photo-1573843981267-be1999ff37cd?q=80&w=2000&auto=format&fit=crop')",
+        }}
+      />
+      <div className="pointer-events-none absolute -top-24 left-10 h-80 w-80 rounded-full bg-lagoon-light/25 blur-3xl animate-drift" />
+      <div className="pointer-events-none absolute -bottom-32 right-10 h-96 w-96 rounded-full bg-coral/25 blur-3xl animate-drift" style={{ animationDelay: "-8s" }} />
+
+      <div className="container-x relative">
         <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          variants={containerVariants}
-          className="space-y-12"
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.3 }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          className="max-w-3xl mx-auto text-center space-y-8"
         >
-          <div className="text-center space-y-4">
-            <motion.h2
-              variants={itemVariants}
-              className="text-3xl md:text-4xl font-bold text-foreground"
-            >
-              Latest From Our
-              <span className="text-sky-500"> Blog</span>
-            </motion.h2>
-            <motion.p
-              variants={itemVariants}
-              className="text-lg text-muted-foreground max-w-2xl mx-auto"
-            >
-              Stay updated with travel tips, destination guides, and news from
-              the world of sea travel.
-            </motion.p>
-          </div>
-
-          <motion.div
-            variants={containerVariants}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+          <span className="chip glass text-white uppercase tracking-[0.22em]">
+            <Anchor className="h-3 w-3" /> Ready when you are
+          </span>
+          <h2
+            className="text-5xl md:text-7xl font-light italic leading-[0.98] text-balance"
+            style={{ fontFamily: "var(--font-fraunces), Georgia, serif" }}
           >
-            {posts.map((post) => (
-              <motion.div key={post.id} variants={itemVariants}>
-                <Card className="group overflow-hidden border-none shadow-lg hover:shadow-xl transition-all duration-300">
-                  <div className="relative h-48 overflow-hidden">
-                    <div
-                      className="absolute inset-0 bg-cover bg-center group-hover:scale-110 transition-transform duration-500"
-                      style={{
-                        backgroundImage: `url(${post.image})`,
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-black/25" />
-                    <div className="absolute top-4 left-4">
-                      <Badge className="bg-sky-500 text-black hover:bg-sky-600">
-                        {post.category}
-                      </Badge>
-                    </div>
-                  </div>
-                  <CardContent className="p-6 space-y-4">
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <span>{post.date}</span>
-                      <span>•</span>
-                      <span>{post.readTime}</span>
-                    </div>
-                    <h3 className="text-xl font-semibold text-foreground group-hover:text-sky-500 transition-colors">
-                      {post.title}
-                    </h3>
-                    <p className="text-muted-foreground">{post.excerpt}</p>
-                    <Button
-                      variant="link"
-                      className="p-0 h-auto text-sky-500 hover:text-sky-600"
-                    >
-                      Read More
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </motion.div>
-
-          <motion.div variants={itemVariants} className="text-center pt-8">
+            Ready to sail?
+          </h2>
+          <p className="text-white/80 text-lg md:text-xl max-w-xl mx-auto">
+            Find a ferry, request a private charter, or move cargo — start in a single click.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-4">
             <Button
-              variant="outline"
-              className="border-sky-500 text-sky-500 hover:bg-sky-500/10"
+              asChild
+              className="bg-coral hover:bg-coral-soft text-white rounded-full h-14 px-8 text-base font-medium shadow-coral tracking-wide"
             >
-              View All Posts
+              <Link href="/bus-tickets">
+                Book a ferry <ArrowRight className="h-4 w-4 ml-1.5" />
+              </Link>
             </Button>
-          </motion.div>
+            <Button
+              asChild
+              variant="outline"
+              className="bg-white/10 border-white/30 hover:bg-white/20 hover:text-white text-white rounded-full h-14 px-8 backdrop-blur"
+            >
+              <Link href="/charter">Request a charter</Link>
+            </Button>
+          </div>
         </motion.div>
       </div>
     </section>
