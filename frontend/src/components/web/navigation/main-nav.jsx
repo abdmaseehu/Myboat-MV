@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { Home, Info, Settings, Phone } from "lucide-react";
+import { Home, Info, Settings, Phone, Anchor, Truck } from "lucide-react";
 
 const routes = [
   {
@@ -21,6 +21,16 @@ const routes = [
     href: "/services",
     label: "Services",
     icon: Settings,
+  },
+  {
+    href: "/charter",
+    label: "Private Charter",
+    icon: Anchor,
+  },
+  {
+    href: "/logistics",
+    label: "Logistics",
+    icon: Truck,
   },
   {
     href: "/contact",

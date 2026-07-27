@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   getMyRequests,
+  getRequestsIRequested,
   getRequestById,
   createRequest,
   sendQuote,
@@ -15,6 +16,7 @@ const { isAdmin } = require('../../middleware/role.middleware');
 router.use(isAuthenticated);
 
 router.get('/all', isAdmin, getAllRequests);
+router.get('/requested-by-me', getRequestsIRequested);
 router.get('/', getMyRequests);
 router.get('/:id', getRequestById);
 router.post('/', createRequest);

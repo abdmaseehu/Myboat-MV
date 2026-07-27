@@ -22,6 +22,14 @@ const routes = [
     label: "Services",
   },
   {
+    href: "/charter",
+    label: "Private Charter",
+  },
+  {
+    href: "/logistics",
+    label: "Logistics",
+  },
+  {
     href: "/contact",
     label: "Contact",
   },

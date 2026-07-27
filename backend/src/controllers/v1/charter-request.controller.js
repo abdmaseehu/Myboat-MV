@@ -62,6 +62,29 @@ const getMyRequests = async (req, res) => {
   }
 };
 
+// GET /charter-requests/requested-by-me - customer's own submitted requests
+const getRequestsIRequested = async (req, res) => {
+  try {
+    const { status } = req.query;
+    const where = { userId: req.user.id };
+    if (status) where.status = status;
+    const requests = await prisma.charterRequest.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        vessel: { select: { id: true, name: true } },
+        vendor: { select: { id: true, businessName: true, phone: true, email: true } },
+      },
+    });
+    return res.json({ success: true, data: requests });
+  } catch (error) {
+    console.error('getRequestsIRequested charter error', error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Failed to fetch requests', error: error.message });
+  }
+};
+
 // GET /charter-requests/:id
 const getRequestById = async (req, res) => {
   try {
@@ -219,6 +242,21 @@ const updateRequest = async (req, res) => {
       if (!vendor || (request.vendorId && request.vendorId !== vendor.id)) {
         return res.status(403).json({ success: false, message: 'Forbidden' });
       }
+    } else if (req.user.role === 'USER') {
+      if (request.userId !== req.user.id) {
+        return res.status(403).json({ success: false, message: 'Forbidden' });
+      }
+      // Customers can only change status (accept/reject a quote) or cancel
+      const allowed = ['status'];
+      const filtered = {};
+      for (const k of allowed) {
+        if (typeof req.body?.[k] !== 'undefined') filtered[k] = req.body[k];
+      }
+      req.body = filtered;
+      const allowedStatuses = ['ACCEPTED', 'REJECTED', 'CANCELLED'];
+      if (filtered.status && !allowedStatuses.includes(filtered.status)) {
+        return res.status(400).json({ success: false, message: 'Invalid status transition' });
+      }
     }
 
     const body = req.body || {};
@@ -297,6 +335,7 @@ const getAllRequests = async (req, res) => {
 
 module.exports = {
   getMyRequests,
+  getRequestsIRequested,
   getRequestById,
   createRequest,
   sendQuote,

@@ -10,6 +10,8 @@ import {
   Key,
   Home,
   X,
+  Anchor,
+  FileText,
 } from "lucide-react";
 import { useAuth } from "@/store/use-auth";
 import { motion } from "framer-motion";
@@ -25,6 +27,11 @@ const routes = [
     label: "My Bookings",
     icon: Clock,
     href: "/users/bookings",
+  },
+  {
+    label: "My Requests",
+    icon: FileText,
+    href: "/users/my-requests",
   },
   {
     label: "Checkout",
