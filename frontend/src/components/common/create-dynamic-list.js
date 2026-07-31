@@ -41,8 +41,13 @@ export default function createDynamicList({
   deleteEndpoint,
   EditMode
 }) {
-  // Return a component
-  return function DynamicListComponent() {
+  // Return a component.
+  // Accepts optional runtime props: `extraParams` (query filters merged into
+  // every fetch) and `refreshTrigger` (bump to force a reload from a parent).
+  return function DynamicListComponent({
+    extraParams,
+    refreshTrigger: externalRefreshTrigger = 0,
+  } = {}) {
     const router = useRouter();
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
@@ -103,7 +108,8 @@ export default function createDynamicList({
           onDelete={handleDelete}
           customActions={actions}
           searchPlaceholder={searchPlaceholder}
-          refreshTrigger={refreshTrigger}
+          refreshTrigger={refreshTrigger + externalRefreshTrigger}
+          extraParams={extraParams}
           EditMode={EditMode}
         />
 

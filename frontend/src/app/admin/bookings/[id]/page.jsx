@@ -58,7 +58,14 @@ export default function BookingDetailsPage() {
         <ArrowLeft className="h-4 w-4" />
         Back to Bookings
       </Button>
-      <BookingDetails booking={booking} />
+      {/* Status actions PATCH the booking and return the updated record with the
+          same include shape, so we can swap it in without a full refetch. */}
+      <BookingDetails
+        booking={booking}
+        onUpdated={(updated) =>
+          setBooking((prev) => ({ ...prev, ...(updated || {}) }))
+        }
+      />
     </div>
   );
 }

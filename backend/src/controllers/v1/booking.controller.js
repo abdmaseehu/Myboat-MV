@@ -39,12 +39,94 @@ const createBookingSchema = z.object({
   notes: z.string().optional(),
 });
 
+// NOTE: BookingStatus in prisma/schema.prisma only has PENDING | CONFIRMED | CANCELLED.
+// Do NOT add COMPLETED here unless the DB enum is migrated first.
+const BOOKING_STATUSES = ['PENDING', 'CONFIRMED', 'CANCELLED'];
+const PAYMENT_STATUSES = [
+  'PENDING',
+  'PAID',
+  'PROCESSING',
+  'AWAITING_PAYMENT',
+  'FAILED',
+  'REFUNDED',
+];
+
 const updateBookingSchema = z.object({
-  status: z.enum(['CONFIRMED', 'CANCELLED', 'COMPLETED']).optional(),
+  // status and paymentStatus are INDEPENDENT: marking a booking PAID never
+  // implicitly confirms it, and confirming never implicitly marks it paid.
+  status: z.enum(BOOKING_STATUSES).optional(),
+  paymentStatus: z.enum(PAYMENT_STATUSES).optional(),
   cancellationReason: z.string().optional(),
   cancellationCharge: z.number().min(0).optional(),
   refundAmount: z.number().min(0).optional(),
 });
+
+const bulkStatusSchema = z.object({
+  ids: z.array(z.string()).min(1),
+  status: z.enum(BOOKING_STATUSES).optional(),
+  paymentStatus: z.enum(PAYMENT_STATUSES).optional(),
+  cancellationReason: z.string().optional(),
+});
+
+// Shared include shape so list / detail / update all return the same object.
+const bookingInclude = {
+  user: {
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+    },
+  },
+  vehicle: {
+    select: {
+      id: true,
+      vehicleName: true,
+      vehicleNumber: true,
+    },
+  },
+  route: {
+    select: {
+      id: true,
+      sourceCity: true,
+      destinationCity: true,
+    },
+  },
+  boardingPoint: true,
+  droppingPoint: true,
+};
+
+/**
+ * Can this user change the status of this booking?
+ * ADMIN  -> any booking.
+ * VENDOR -> only bookings that belong to them. Booking.vendorId references
+ *           User.id (see `vendor Vendor? @relation(..., references: [userId])`),
+ *           so the comparison is against req.user.id. A booking on one of their
+ *           own routes also counts.
+ * Anyone else -> no.
+ */
+const canManageBooking = (user, booking) => {
+  if (!user || !booking) return false;
+  if (user.role === 'ADMIN') return true;
+  if (user.role === 'VENDOR') {
+    return booking.vendorId === user.id || booking.route?.userId === user.id;
+  }
+  return false;
+};
+
+// Build the prisma `data` payload for a status/payment update.
+const buildStatusUpdateData = (data) => {
+  const updateData = {};
+  if (data.status !== undefined) updateData.status = data.status;
+  if (data.paymentStatus !== undefined) updateData.paymentStatus = data.paymentStatus;
+  if (data.cancellationCharge !== undefined) updateData.cancellationCharge = data.cancellationCharge;
+  if (data.refundAmount !== undefined) updateData.refundAmount = data.refundAmount;
+  // Only persist a cancellation reason when the booking is actually cancelled.
+  if (data.status === 'CANCELLED' && data.cancellationReason) {
+    updateData.cancellationReason = data.cancellationReason;
+  }
+  return updateData;
+};
 
 // Create booking
 const createBooking = async (req, res) => {
@@ -443,7 +525,7 @@ const getBookingById = async (req, res) => {
   }
 };
 
-// Update booking
+// Update booking (status / payment status management)
 const updateBooking = async (req, res) => {
   try {
     const { id } = req.params;
@@ -451,7 +533,8 @@ const updateBooking = async (req, res) => {
 
     // Check if booking exists and user has permission
     const existingBooking = await prisma.booking.findUnique({
-      where: { id }
+      where: { id },
+      include: { route: { select: { id: true, userId: true } } },
     });
 
     if (!existingBooking) {
@@ -461,47 +544,26 @@ const updateBooking = async (req, res) => {
       });
     }
 
-    if (
-      req.user.role !== 'ADMIN' && 
-      req.user.role !== 'VENDOR' && 
-      existingBooking.userId !== req.user.id && 
-      existingBooking.vendorId !== req.user.id
-    ) {
+    if (!canManageBooking(req.user, existingBooking)) {
       return res.status(403).json({
         success: false,
         message: 'You do not have permission to update this booking'
       });
     }
 
+    const updateData = buildStatusUpdateData(validatedData);
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No updatable fields provided',
+      });
+    }
+
     const booking = await prisma.booking.update({
       where: { id },
-      data: validatedData,
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true
-          }
-        },
-        vehicle: {
-          select: {
-            id: true,
-            vehicleName: true,
-            vehicleNumber: true
-          }
-        },
-        route: {
-          select: {
-            id: true,
-            sourceCity: true,
-            destinationCity: true
-          }
-        },
-        boardingPoint: true,
-        droppingPoint: true
-      }
+      data: updateData,
+      include: bookingInclude,
     });
 
     res.json({
@@ -520,6 +582,73 @@ const updateBooking = async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Error updating booking'
+    });
+  }
+};
+
+/**
+ * Bulk status update.
+ * PATCH /api/v1/bookings/bulk-status
+ * Body: { ids: string[], status?, paymentStatus?, cancellationReason? }
+ * Bookings the caller does not own are silently skipped and reported back.
+ * NOTE: this route MUST be registered before PATCH /:id.
+ */
+const bulkUpdateBookingStatus = async (req, res) => {
+  try {
+    const validatedData = bulkStatusSchema.parse(req.body);
+    const updateData = buildStatusUpdateData(validatedData);
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Nothing to update: provide status and/or paymentStatus',
+      });
+    }
+
+    const ids = [...new Set(validatedData.ids)];
+
+    const bookings = await prisma.booking.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        vendorId: true,
+        route: { select: { id: true, userId: true } },
+      },
+    });
+
+    const allowedIds = bookings
+      .filter((booking) => canManageBooking(req.user, booking))
+      .map((booking) => booking.id);
+
+    let updated = 0;
+    if (allowedIds.length > 0) {
+      const result = await prisma.booking.updateMany({
+        where: { id: { in: allowedIds } },
+        data: updateData,
+      });
+      updated = result.count;
+    }
+
+    return res.json({
+      success: true,
+      message: `${updated} booking(s) updated`,
+      data: {
+        updated,
+        skipped: ids.length - updated,
+        updatedIds: allowedIds,
+      },
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: error.errors,
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Error updating bookings',
     });
   }
 };
@@ -634,6 +763,7 @@ module.exports = {
   getAllBookings,
   getBookingById,
   updateBooking,
+  bulkUpdateBookingStatus,
   deleteBooking,
   getBookingsByVehicleAndDate,
 }; 

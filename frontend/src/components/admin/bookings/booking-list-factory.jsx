@@ -1,3 +1,6 @@
+"use client";
+
+import { useMemo, useRef, useState } from "react";
 import {
   Calendar,
   MapPin,
@@ -13,6 +16,12 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import createDynamicList from "@/components/common/create-dynamic-list";
 import { formatMoney } from "@/lib/currency";
+import {
+  buildBookingStatusActions,
+  CancelBookingDialog,
+  statusBadgeClass,
+  paymentBadgeClass,
+} from "./booking-status-actions";
 
 // Format date
 const formatDate = (date) => {
@@ -28,33 +37,11 @@ const formatDate = (date) => {
   }
 };
 
-// Get status color
-const getStatusColor = (status) => {
-  switch (status) {
-    case "CONFIRMED":
-      return "border-green-500 text-green-500";
-    case "PENDING":
-      return "border-sky-500 text-sky-500";
-    case "CANCELLED":
-      return "border-red-500 text-red-500";
-    default:
-      return "border-gray-500 text-gray-500";
-  }
-};
-
-// Get payment status color
-const getPaymentStatusColor = (status) => {
-  switch (status) {
-    case "PAID":
-      return "border-green-500 text-green-500";
-    case "PENDING":
-      return "border-sky-500 text-sky-500";
-    case "FAILED":
-      return "border-red-500 text-red-500";
-    default:
-      return "border-gray-500 text-gray-500";
-  }
-};
+// Status colors live in ./booking-status-actions so the list, the detail page
+// and the action buttons all agree (CONFIRMED/PAID = emerald, PENDING = amber,
+// CANCELLED/FAILED = red).
+const getStatusColor = statusBadgeClass;
+const getPaymentStatusColor = paymentBadgeClass;
 
 // Currency badge (MVR = green, USD = blue). Currencies are independent.
 const CurrencyBadge = ({ currency }) => {
@@ -183,9 +170,9 @@ const renderRow = (booking, columnKey) => {
   }
 };
 
-// Create the dynamic booking list component.
-// Adds a Currency filter dropdown (All / MVR / USD).
-const BookingListFactory = createDynamicList({
+// Base config for the dynamic booking list.
+// Keeps the Currency column + filter dropdown (All / MVR / USD).
+const baseConfig = {
   title: "Bookings",
   apiEndpoint: "/bookings",
   columns,
@@ -208,18 +195,75 @@ const BookingListFactory = createDynamicList({
       ],
     },
   ],
-  customActions: [
-    {
-      label: "View Details",
-      icon: <Eye className="h-4 w-4" />,
-      onClick: (booking) =>
-        (window.location.href = `/admin/bookings/${booking.id}`),
-      className:
-        "text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer",
-    },
-  ],
   searchPlaceholder: "Search bookings...",
   EditMode: false,
-});
+};
 
-export default BookingListFactory;
+const VIEW_DETAILS_ACTION = {
+  label: "View Details",
+  icon: <Eye className="h-4 w-4" />,
+  onClick: (booking) => (window.location.href = `/admin/bookings/${booking.id}`),
+  className:
+    "text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer",
+};
+
+/**
+ * Bookings list with operator status-management actions.
+ *
+ * The dynamic list renders `customActions` as plain objects, so the destructive
+ * "Cancel Booking" action can't own a dialog itself. Instead it hands the
+ * booking (and the list's own `refresh` callback) back up here, where the
+ * AlertDialog lives.
+ *
+ * @param {Object}   props.extraParams  query filters merged into every fetch
+ * @param {Function} props.onStatusChange called after any successful status change
+ */
+export default function BookingListFactory({ extraParams, onStatusChange }) {
+  const [cancelTarget, setCancelTarget] = useState(null);
+
+  // Refresh callback handed to us by the list for the row that was acted on.
+  const pendingRefreshRef = useRef(null);
+  // Keep the latest onStatusChange reachable from the memoized action handlers.
+  const onStatusChangeRef = useRef(onStatusChange);
+  onStatusChangeRef.current = onStatusChange;
+
+  // createDynamicList returns a component type — memoize so it stays stable
+  // across renders. The handlers below only close over stable refs/setters.
+  const List = useMemo(
+    () =>
+      createDynamicList({
+        ...baseConfig,
+        customActions: [
+          ...buildBookingStatusActions({
+            onChanged: () => onStatusChangeRef.current?.(),
+            onCancelRequest: (booking, refresh) => {
+              pendingRefreshRef.current = refresh;
+              setCancelTarget(booking);
+            },
+          }),
+          VIEW_DETAILS_ACTION,
+        ],
+      }),
+    []
+  );
+
+  return (
+    <>
+      <List extraParams={extraParams} />
+
+      <CancelBookingDialog
+        booking={cancelTarget}
+        open={!!cancelTarget}
+        onOpenChange={(open) => {
+          if (!open) setCancelTarget(null);
+        }}
+        onDone={() => {
+          pendingRefreshRef.current?.();
+          pendingRefreshRef.current = null;
+          setCancelTarget(null);
+          onStatusChangeRef.current?.();
+        }}
+      />
+    </>
+  );
+}

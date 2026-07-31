@@ -5,7 +5,16 @@ import { useCallback, useEffect, useState } from "react";
 import { Toaster } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Receipt, CheckCircle2, Clock, DollarSign, Coins } from "lucide-react";
+import {
+  Plus,
+  Receipt,
+  CheckCircle2,
+  Clock,
+  DollarSign,
+  Coins,
+  Hourglass,
+  X,
+} from "lucide-react";
 import api from "@/lib/axios";
 import { formatMoney } from "@/lib/currency";
 import CreateManualBooking from "@/components/admin/bookings/create-manual-booking";
@@ -50,6 +59,9 @@ export default function BookingsPage() {
   });
   const [showModal, setShowModal] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  // When set, the list only fetches PENDING bookings.
+  const [statusFilter, setStatusFilter] = useState("");
 
   const loadStats = useCallback(async () => {
     try {
@@ -154,7 +166,51 @@ export default function BookingsPage() {
         />
       </div>
 
-      <BookingListFactory key={reloadKey} />
+      {/* Awaiting-confirmation banner: customer cash bookings land as PENDING
+          and stay there until the operator confirms them. */}
+      {stats.pending > 0 && !bannerDismissed && (
+        <div className="relative flex flex-col gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-premium sm:flex-row sm:items-center sm:justify-between dark:border-amber-500/40 dark:bg-amber-500/10">
+          <div className="flex items-start gap-3 pr-8">
+            <Hourglass className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div>
+              <p className="font-semibold text-amber-900 dark:text-amber-200">
+                {stats.pending} booking{stats.pending === 1 ? "" : "s"} awaiting
+                confirmation
+              </p>
+              <p className="text-sm text-amber-800 dark:text-amber-300">
+                These customers chose to pay at the counter. Confirm them once
+                payment is collected.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                setStatusFilter((prev) => (prev === "PENDING" ? "" : "PENDING"))
+              }
+              className="border-amber-500 text-amber-800 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-500/20"
+            >
+              {statusFilter === "PENDING" ? "Show all" : "Show pending only"}
+            </Button>
+          </div>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => setBannerDismissed(true)}
+            className="absolute right-3 top-3 rounded-md p-1 text-amber-700 hover:bg-amber-100 dark:text-amber-300 dark:hover:bg-amber-500/20"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      <BookingListFactory
+        key={reloadKey}
+        extraParams={statusFilter ? { status: statusFilter } : undefined}
+        onStatusChange={loadStats}
+      />
 
       <CreateManualBooking
         open={showModal}

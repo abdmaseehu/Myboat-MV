@@ -70,6 +70,8 @@ export default function DynamicList({
   searchField = "search",
   refreshTrigger = 0,
   EditMode = true,
+  // Extra query-string params merged into every fetch (e.g. { status: "PENDING" }).
+  extraParams,
 }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -92,6 +94,15 @@ export default function DynamicList({
       // Add search parameter if provided
       if (search) {
         params[searchField] = search;
+      }
+
+      // Merge caller-supplied filters (skip empty values)
+      if (extraParams) {
+        Object.entries(extraParams).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== "") {
+            params[key] = value;
+          }
+        });
       }
 
       const response = await api.get(apiEndpoint, { params });
@@ -159,9 +170,16 @@ export default function DynamicList({
     }
   };
 
+  const extraParamsKey = JSON.stringify(extraParams || {});
+
   useEffect(() => {
     fetchData();
-  }, [page, limit, search, refreshTrigger, apiEndpoint]);
+  }, [page, limit, search, refreshTrigger, apiEndpoint, extraParamsKey]);
+
+  // Reset to page 1 whenever the external filters change
+  useEffect(() => {
+    setPage(1);
+  }, [extraParamsKey]);
 
   // Delete item
   const handleDelete = async () => {
@@ -398,21 +416,31 @@ export default function DynamicList({
                               <Trash2 className="mr-2 h-4 w-4" />
                               Delete
                             </DropdownMenuItem>
-                            {customActions.map((action, index) => (
-                              <DropdownMenuItem
-                                key={index}
-                                onClick={() => action.onClick(item)}
-                                className={
-                                  action.className ||
-                                  "text-muted-foreground hover:text-sky-500 hover:bg-sky-500/10 cursor-pointer"
-                                }
-                              >
-                                {action.icon && (
-                                  <span className="mr-2">{action.icon}</span>
-                                )}
-                                {action.label}
-                              </DropdownMenuItem>
-                            ))}
+                            {customActions
+                              // `show` is an optional per-row predicate; actions
+                              // without one are always rendered.
+                              .filter((action) =>
+                                typeof action.show === "function"
+                                  ? action.show(item)
+                                  : true
+                              )
+                              .map((action, index) => (
+                                <DropdownMenuItem
+                                  key={action.label || index}
+                                  // Handlers may be async; `fetchData` is handed in
+                                  // so an action can refresh the list in place.
+                                  onClick={() => action.onClick(item, fetchData)}
+                                  className={
+                                    action.className ||
+                                    "text-muted-foreground hover:text-sky-500 hover:bg-sky-500/10 cursor-pointer"
+                                  }
+                                >
+                                  {action.icon && (
+                                    <span className="mr-2">{action.icon}</span>
+                                  )}
+                                  {action.label}
+                                </DropdownMenuItem>
+                              ))}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>

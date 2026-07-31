@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/store/use-auth";
@@ -18,40 +20,26 @@ import {
   Timer,
   AlertTriangle,
   RotateCcw,
-  ChevronDown,
-  Loader2,
+  Banknote,
+  ShieldCheck,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { format } from "date-fns";
-import { toast } from "sonner";
-import api from "@/lib/axios";
 import { cn } from "@/lib/utils";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  BookingStatusActionButtons,
+  BookingStatusRows,
+  CancelBookingDialog,
+  needsCashConfirmation,
+  statusBadgeClass,
+} from "./booking-status-actions";
 
-export default function BookingDetails({ booking }) {
+export default function BookingDetails({ booking, onUpdated }) {
   const router = useRouter();
   const { user } = useAuth();
-  const [loading, setLoading] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState(null);
 
   const formatDate = (date) => {
     if (!date) return "N/A";
@@ -70,20 +58,7 @@ export default function BookingDetails({ booking }) {
     });
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "PENDING":
-        return "border-sky-500 text-sky-500";
-      case "CONFIRMED":
-        return "border-green-500 text-green-500";
-      case "COMPLETED":
-        return "border-blue-500 text-blue-500";
-      case "CANCELLED":
-        return "border-red-500 text-red-500";
-      default:
-        return "border-gray-500 text-gray-500";
-    }
-  };
+  const getStatusColor = statusBadgeClass;
 
   const getPaymentStatusIcon = (status) => {
     switch (status) {
@@ -98,62 +73,18 @@ export default function BookingDetails({ booking }) {
     }
   };
 
-  // Get available statuses based on current status
-  const getAvailableStatuses = () => {
-    switch (booking.status) {
-      case "PENDING":
-        return ["CONFIRMED", "CANCELLED"];
-      case "CONFIRMED":
-        return ["COMPLETED", "CANCELLED"];
-      case "COMPLETED":
-      case "CANCELLED":
-        return [];
-      default:
-        return [];
-    }
-  };
+  // Only ADMIN, or the VENDOR that owns the booking, may change its status.
+  // Booking.vendorId references User.id, so it is compared against user.id.
+  const canUpdateStatus = () =>
+    user?.role === "ADMIN" ||
+    (user?.role === "VENDOR" &&
+      (user?.id === booking.vendorId || user?.id === booking.route?.userId));
 
-  // Check if user can update status
-  const canUpdateStatus = () => {
-    return (
-      user?.role === "ADMIN" ||
-      (user?.role === "VENDOR" && user?.id === booking.vendorId)
-    );
-  };
-
-  const handleStatusUpdate = async (newStatus) => {
-    try {
-      setLoading(true);
-      const response = await api.patch(`/bookings/${booking.id}`, {
-        status: newStatus,
-        ...(newStatus === "CANCELLED" && {
-          cancellationReason: `Cancelled by ${user.role.toLowerCase()}`,
-        }),
-      });
-
-      if (response.data.success) {
-        toast.success("Booking status updated successfully");
-        // Force a hard refresh to get the latest data
-        window.location.reload();
-      } else {
-        toast.error(response.data.message || "Failed to update status");
-      }
-    } catch (error) {
-      console.error("Error updating booking status:", error);
-      toast.error(error.response?.data?.message || "Failed to update status");
-    } finally {
-      setLoading(false);
-      setShowCancelDialog(false);
-    }
-  };
-
-  const handleStatusClick = (status) => {
-    if (status === "CANCELLED") {
-      setSelectedStatus(status);
-      setShowCancelDialog(true);
-    } else {
-      handleStatusUpdate(status);
-    }
+  // The PATCH response returns the booking with the same include shape as the
+  // detail fetch, so we can swap it in place instead of reloading the page.
+  const handleUpdated = (updated) => {
+    if (onUpdated) onUpdated(updated);
+    else window.location.reload();
   };
 
   return (
@@ -172,48 +103,58 @@ export default function BookingDetails({ booking }) {
           </p>
         </div>
 
-        {canUpdateStatus() && getAvailableStatuses().length > 0 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button className="gap-2" disabled={loading}>
-                {loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    Update Status
-                    <ChevronDown className="h-4 w-4" />
-                  </>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {getAvailableStatuses().map((status) => (
-                <DropdownMenuItem
-                  key={status}
-                  onClick={() => handleStatusClick(status)}
-                  className={cn(
-                    "cursor-pointer",
-                    status === "CANCELLED" && "text-red-600"
-                  )}
-                >
-                  {status}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+        <div className="flex items-center gap-2">
+          <Badge
+            variant="outline"
+            className={cn(
+              "text-sm py-1 px-4 border shadow-sm",
+              getStatusColor(booking.status)
+            )}
+          >
+            {booking.status}
+          </Badge>
+        </div>
       </div>
 
-      {/* Status Badge */}
-      <Badge
-        variant="outline"
-        className={cn(
-          "text-sm py-1 px-4 border shadow-sm",
-          getStatusColor(booking.status)
-        )}
-      >
-        {booking.status}
-      </Badge>
+      {/* Status Management Panel */}
+      {canUpdateStatus() && (
+        <Card className="rounded-2xl shadow-premium border-sky-200 dark:border-sky-500/20">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-lg font-semibold">
+              Booking Status
+            </CardTitle>
+            <ShieldCheck className="h-5 w-5 text-lagoon" />
+          </CardHeader>
+          <CardContent className="space-y-5 pt-4">
+            <BookingStatusRows booking={booking} />
+
+            {booking.status === "CANCELLED" && booking.cancellationReason && (
+              <p className="text-sm text-muted-foreground">
+                <span className="font-medium text-foreground">Reason: </span>
+                {booking.cancellationReason}
+              </p>
+            )}
+
+            {needsCashConfirmation(booking) && (
+              <div className="flex gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-500/40 dark:bg-amber-500/10">
+                <Banknote className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  This customer chose to pay cash. Confirm the booking once
+                  payment is collected.
+                </p>
+              </div>
+            )}
+
+            <Separator />
+
+            <BookingStatusActionButtons
+              booking={booking}
+              onUpdated={handleUpdated}
+              onCancelRequest={() => setShowCancelDialog(true)}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Customer Information */}
@@ -476,27 +417,13 @@ export default function BookingDetails({ booking }) {
         </CardContent>
       </Card>
 
-      {/* Cancel Booking Dialog */}
-      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancel Booking</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to cancel this booking? This action cannot
-              be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>No, keep it</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => handleStatusUpdate("CANCELLED")}
-              className="bg-red-500 hover:bg-red-600"
-            >
-              Yes, cancel booking
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Cancel Booking Dialog (asks for an optional reason) */}
+      <CancelBookingDialog
+        booking={booking}
+        open={showCancelDialog}
+        onOpenChange={setShowCancelDialog}
+        onDone={handleUpdated}
+      />
     </div>
   );
 }
