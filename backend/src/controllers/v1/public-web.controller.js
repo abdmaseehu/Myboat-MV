@@ -72,7 +72,9 @@ const getVehiclesByRouteId = async (req, res) => {
           schedules: {
             where: {
               status: "ACTIVE",
+              routeId,
             },
+            orderBy: { departureTime: "asc" },
           },
           user: {
             include: {
@@ -90,6 +92,21 @@ const getVehiclesByRouteId = async (req, res) => {
         take: limit,
       }),
     ]);
+
+    // departureTime stores a full timestamp but only its clock time is
+    // meaningful - the date component differs depending on when the schedule
+    // was created. Order by time-of-day so schedules[0] is the first sailing.
+    const minutesOfDay = (d) => {
+      const t = new Date(d);
+      return t.getUTCHours() * 60 + t.getUTCMinutes();
+    };
+    vehicles.forEach((v) => {
+      if (Array.isArray(v.schedules)) {
+        v.schedules.sort(
+          (a, b) => minutesOfDay(a.departureTime) - minutesOfDay(b.departureTime)
+        );
+      }
+    });
 
     if (!vehicles.length) {
       return res.status(404).json({

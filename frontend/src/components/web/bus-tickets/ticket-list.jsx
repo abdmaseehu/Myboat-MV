@@ -72,6 +72,17 @@ const filterVariants = {
   },
 };
 
+// The schedule is the authority on when the vessel sails. Boarding/dropping
+// point times are per-jetty offsets and belong in the points dialog only.
+const formatScheduleTime = (date) => {
+  if (!date) return "--:--";
+  try {
+    return format(date, "hh:mm a");
+  } catch (error) {
+    return "--:--";
+  }
+};
+
 const formatPointTime = (time) => {
   if (!time) return "Time not specified";
   try {
@@ -436,10 +447,7 @@ export default function TicketList({ routeId, date }) {
                                   {vehicle?.route?.sourceCity}
                                 </h3>
                                 <p className="text-sm font-medium text-sky-600/80 dark:text-sky-500/80">
-                                  {formatPointTime(
-                                    vehicle?.route?.boardingPoints?.[0]
-                                      ?.arrivalTime
-                                  )}
+                                  {formatScheduleTime(departureTime)}
                                 </p>
                               </motion.div>
                             </div>
@@ -478,21 +486,14 @@ export default function TicketList({ routeId, date }) {
                                     variant="outline"
                                     className="bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-800 whitespace-nowrap"
                                   >
-                                    {vehicle?.route?.distance} KM
+                                    {vehicle?.route?.distance} NM
                                   </Badge>
                                   <Badge
                                     variant="outline"
                                     className="bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-800 whitespace-nowrap"
                                   >
-                                    {formatPointTime(
-                                      vehicle?.route?.boardingPoints?.[0]
-                                        ?.arrivalTime
-                                    )}{" "}
-                                    -{" "}
-                                    {formatPointTime(
-                                      vehicle?.route?.droppingPoints?.[0]
-                                        ?.arrivalTime
-                                    )}
+                                    {formatScheduleTime(departureTime)} -{" "}
+                                    {formatScheduleTime(arrivalTime)}
                                   </Badge>
                                 </div>
                               </motion.div>
@@ -513,10 +514,7 @@ export default function TicketList({ routeId, date }) {
                                   {vehicle?.route?.destinationCity}
                                 </h3>
                                 <p className="text-sm font-medium text-sky-600/80 dark:text-sky-500/80">
-                                  {formatPointTime(
-                                    vehicle?.route?.droppingPoints?.[0]
-                                      ?.arrivalTime
-                                  )}
+                                  {formatScheduleTime(arrivalTime)}
                                 </p>
                               </motion.div>
                             </div>
