@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Clock, Ship, Eye } from "lucide-react";
+import { MapPin, Ship, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -11,24 +11,6 @@ import dynamic from "next/dynamic";
 const DeleteBoardingPoint = dynamic(() => import("./delete-boarding-point"), {
   ssr: false,
 });
-
-// Format time for display
-const formatTime = (isoTime) => {
-  if (!isoTime) return "N/A";
-  try {
-    // Parse the ISO time string
-    const date = new Date(isoTime);
-    // Format time in 12-hour format with AM/PM
-    return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-  } catch (error) {
-    console.error("Error formatting time:", error);
-    return "Invalid Time";
-  }
-};
 
 // Get sequence color
 const getSequenceColor = (sequence) => {
@@ -41,7 +23,6 @@ const getSequenceColor = (sequence) => {
 const columns = [
   { key: "location", header: "Location" },
   { key: "route", header: "Route" },
-  { key: "time", header: "Time" },
   { key: "sequence", header: "Sequence" },
 ];
 
@@ -74,13 +55,6 @@ const renderRow = (point, columnKey) => {
               {point.route?.distance} km
             </p>
           </div>
-        </div>
-      );
-    case "time":
-      return (
-        <div className="flex items-center gap-2">
-          <Clock className="h-4 w-4 text-sky-500" />
-          <span>{formatTime(point.arrivalTime)}</span>
         </div>
       );
     case "sequence":

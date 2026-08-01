@@ -86,14 +86,6 @@ export default function BookingsPage() {
     }
   };
 
-  const formatTime = (time) => {
-    try {
-      return format(new Date(time), "p");
-    } catch (error) {
-      return time;
-    }
-  };
-
   const getStatusColor = (status) => {
     switch (status?.toUpperCase()) {
       case "CONFIRMED":
@@ -234,9 +226,6 @@ export default function BookingsPage() {
                         <p className="text-muted-foreground">Boarding</p>
                         <p className="font-medium truncate">
                           {booking?.boardingPoint?.locationName}
-                        </p>
-                        <p className="text-sky-500">
-                          {formatTime(booking?.boardingPoint?.arrivalTime)}
                         </p>
                       </div>
                     </div>

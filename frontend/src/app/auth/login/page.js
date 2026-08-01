@@ -112,8 +112,19 @@ export default function LoginPage() {
   // Handle role-based redirection
   const handleRedirect = (role) => {
     if (role === 'USER') {
-      router.push('/users');
+      // A customer sent here mid-booking must land back on checkout, not on
+      // their dashboard — otherwise the selection is silently abandoned.
+      const pending = localStorage.getItem('redirectAfterLogin');
+      localStorage.removeItem('redirectAfterLogin');
+      // Same-origin paths only — "//evil.com" is a protocol-relative URL.
+      const safe =
+        pending && pending.startsWith('/') && !pending.startsWith('//')
+          ? pending
+          : '/users';
+      router.push(safe);
     } else if (role === 'ADMIN' || role === 'VENDOR') {
+      // Staff never resume a customer checkout; drop any stale target.
+      localStorage.removeItem('redirectAfterLogin');
       router.push('/admin/dashboard');
     }
   };

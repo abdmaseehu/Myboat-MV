@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MapPin } from "lucide-react";
 
-export default function BoardingPointsDialog({ vehicle, formatPointTime }) {
+export default function BoardingPointsDialog({ vehicle }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -39,8 +39,8 @@ export default function BoardingPointsDialog({ vehicle, formatPointTime }) {
                 <MapPin className="w-5 h-5 text-sky-500 flex-shrink-0 mt-1" />
                 <div>
                   <h4 className="font-medium">{point.locationName}</h4>
-                  <p className="text-sm text-sky-500 font-medium">
-                    {formatPointTime(point.arrivalTime)}
+                  <p className="text-sm text-muted-foreground">
+                    Stop {point.sequenceNumber ?? i + 1}
                   </p>
                 </div>
               </div>

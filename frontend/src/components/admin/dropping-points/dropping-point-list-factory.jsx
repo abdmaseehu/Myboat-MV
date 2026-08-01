@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Clock, Ship, Eye } from "lucide-react";
+import { MapPin, Ship, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -13,39 +13,6 @@ const DeleteDroppingPoint = dynamic(() => import("./delete-dropping-point"), {
   ssr: false,
 });
 
-// Format time for display
-const formatTime = (isoTime) => {
-  if (!isoTime) return "N/A";
-  try {
-    // Parse the ISO time string
-    let date = new Date(isoTime);
-    if (isNaN(date.getTime())) {
-      // If the date is invalid, try parsing just the time portion
-      if (typeof isoTime === "string" && isoTime.includes("T")) {
-        const timeOnly = isoTime.split("T")[1].split(".")[0];
-        date = new Date(`2000-01-01T${timeOnly}`);
-      } else if (typeof isoTime === "string" && isoTime.includes(":")) {
-        date = new Date(`2000-01-01T${isoTime}`);
-      }
-    }
-
-    // Check if date is valid after all attempts
-    if (isNaN(date.getTime())) {
-      return "Invalid Time";
-    }
-
-    // Format time in 12-hour format with AM/PM
-    return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-  } catch (error) {
-    console.error("Error formatting time:", error, "Time value:", isoTime);
-    return "Invalid Time";
-  }
-};
-
 // Get sequence color
 const getSequenceColor = (sequence) => {
   if (sequence === 1) return "border-red-500 text-red-500";
@@ -57,7 +24,6 @@ const getSequenceColor = (sequence) => {
 const columns = [
   { key: "location", header: "Location" },
   { key: "route", header: "Route" },
-  { key: "time", header: "Time" },
   { key: "sequence", header: "Sequence" },
 ];
 
@@ -90,13 +56,6 @@ const renderRow = (point, columnKey) => {
               {point.route?.distance} km
             </p>
           </div>
-        </div>
-      );
-    case "time":
-      return (
-        <div className="flex items-center gap-2">
-          <Clock className="h-4 w-4 text-red-500" />
-          <span>{formatTime(point.arrivalTime)}</span>
         </div>
       );
     case "sequence":

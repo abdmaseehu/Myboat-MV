@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapPin, X, ChevronRight, Clock, CreditCard } from "lucide-react";
+import { MapPin, X, ChevronRight, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
@@ -165,33 +165,16 @@ export default function BoardingPointSelection({ isOpen, onClose, vehicle }) {
                           >
                             {point.locationName}
                           </h4>
-                          <div className="flex items-center gap-2">
-                            <Clock
-                              className={cn(
-                                "h-4 w-4",
-                                selectedBoardingPoint?.id === point.id
-                                  ? "text-black/70"
-                                  : "text-sky-500"
-                              )}
-                            />
-                            <span
-                              className={cn(
-                                "text-sm",
-                                selectedBoardingPoint?.id === point.id
-                                  ? "text-black/70"
-                                  : "text-muted-foreground"
-                              )}
-                            >
-                              {new Date(point.arrivalTime).toLocaleTimeString(
-                                "en-US",
-                                {
-                                  hour: "numeric",
-                                  minute: "2-digit",
-                                  hour12: true,
-                                }
-                              )}
-                            </span>
-                          </div>
+                          <span
+                            className={cn(
+                              "text-sm",
+                              selectedBoardingPoint?.id === point.id
+                                ? "text-black/70"
+                                : "text-muted-foreground"
+                            )}
+                          >
+                            Stop {point.sequenceNumber ?? index + 1}
+                          </span>
                         </div>
                         <ChevronRight
                           className={cn(

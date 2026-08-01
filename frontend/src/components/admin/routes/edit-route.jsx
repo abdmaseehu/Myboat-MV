@@ -48,7 +48,6 @@ const routeSchema = z.object({
     .array(
       z.object({
         locationName: z.string().min(2),
-        arrivalTime: z.string().optional(),
         sequenceNumber: z.number().int().min(1).optional(),
       })
     )
@@ -57,32 +56,12 @@ const routeSchema = z.object({
     .array(
       z.object({
         locationName: z.string().min(2),
-        arrivalTime: z.string().optional(),
         sequenceNumber: z.number().int().min(1).optional(),
       })
     )
     .optional(),
 });
 
-// Format time for display in input
-const formatTimeForInput = (isoTime) => {
-  if (!isoTime) return "";
-  try {
-    const date = new Date(isoTime);
-    return date.toTimeString().slice(0, 5); // Returns HH:mm format
-  } catch (error) {
-    return "";
-  }
-};
-
-// Format time for API submission
-const formatTimeForSubmission = (time) => {
-  if (!time) return null;
-  // Get current date in YYYY-MM-DD format
-  const today = new Date().toISOString().split("T")[0];
-  // Combine date and time
-  return new Date(`${today}T${time}`).toISOString();
-};
 
 export default function EditRoute({ route, open, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
@@ -93,14 +72,8 @@ export default function EditRoute({ route, open, onClose, onSuccess }) {
     distance: route.distance || "",
     durationMinutes: route.durationMinutes || "",
     isActive: route.isActive ?? true,
-    boardingPoints: (route.boardingPoints || []).map((point) => ({
-      ...point,
-      arrivalTime: formatTimeForInput(point.arrivalTime),
-    })),
-    droppingPoints: (route.droppingPoints || []).map((point) => ({
-      ...point,
-      arrivalTime: formatTimeForInput(point.arrivalTime),
-    })),
+    boardingPoints: route.boardingPoints || [],
+    droppingPoints: route.droppingPoints || [],
   });
   const [errors, setErrors] = useState({});
 
@@ -113,16 +86,9 @@ export default function EditRoute({ route, open, onClose, onSuccess }) {
         serviceType: route.serviceType || "SCHEDULED_FERRY",
         distance: route.distance || "",
         durationMinutes: route.durationMinutes || "",
-    durationMinutes: route.durationMinutes || "",
         isActive: route.isActive ?? true,
-        boardingPoints: (route.boardingPoints || []).map((point) => ({
-          ...point,
-          arrivalTime: formatTimeForInput(point.arrivalTime),
-        })),
-        droppingPoints: (route.droppingPoints || []).map((point) => ({
-          ...point,
-          arrivalTime: formatTimeForInput(point.arrivalTime),
-        })),
+        boardingPoints: route.boardingPoints || [],
+        droppingPoints: route.droppingPoints || [],
       });
     }
   }, [route]);
@@ -148,7 +114,6 @@ export default function EditRoute({ route, open, onClose, onSuccess }) {
         ...prev.boardingPoints,
         {
           locationName: "",
-          arrivalTime: "",
           sequenceNumber: prev.boardingPoints.length + 1,
         },
       ],
@@ -179,7 +144,6 @@ export default function EditRoute({ route, open, onClose, onSuccess }) {
         ...prev.droppingPoints,
         {
           locationName: "",
-          arrivalTime: "",
           sequenceNumber: prev.droppingPoints.length + 1,
         },
       ],
@@ -226,13 +190,15 @@ export default function EditRoute({ route, open, onClose, onSuccess }) {
         durationMinutes: formData.durationMinutes
           ? Number(formData.durationMinutes)
           : undefined,
+        // Points are locations only — the schedule owns all timing. Rebuilt
+        // explicitly so any legacy arrivalTime on a loaded route is dropped.
         boardingPoints: formData.boardingPoints.map((point) => ({
-          ...point,
-          arrivalTime: formatTimeForSubmission(point.arrivalTime),
+          locationName: point.locationName,
+          sequenceNumber: point.sequenceNumber,
         })),
         droppingPoints: formData.droppingPoints.map((point) => ({
-          ...point,
-          arrivalTime: formatTimeForSubmission(point.arrivalTime),
+          locationName: point.locationName,
+          sequenceNumber: point.sequenceNumber,
         })),
       };
 
@@ -392,21 +358,6 @@ export default function EditRoute({ route, open, onClose, onSuccess }) {
                     disabled={loading}
                     className="flex-1"
                   />
-                  <div className="flex-1 space-y-2">
-                    <Label>Arrival Time</Label>
-                    <Input
-                      type="time"
-                      value={point.arrivalTime}
-                      onChange={(e) =>
-                        updateBoardingPoint(
-                          index,
-                          "arrivalTime",
-                          e.target.value
-                        )
-                      }
-                      className="bg-background"
-                    />
-                  </div>
                   <Button
                     type="button"
                     variant="ghost"
@@ -450,21 +401,6 @@ export default function EditRoute({ route, open, onClose, onSuccess }) {
                     disabled={loading}
                     className="flex-1"
                   />
-                  <div className="flex-1 space-y-2">
-                    <Label>Arrival Time</Label>
-                    <Input
-                      type="time"
-                      value={point.arrivalTime}
-                      onChange={(e) =>
-                        updateDroppingPoint(
-                          index,
-                          "arrivalTime",
-                          e.target.value
-                        )
-                      }
-                      className="bg-background"
-                    />
-                  </div>
                   <Button
                     type="button"
                     variant="ghost"

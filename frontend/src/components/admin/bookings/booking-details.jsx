@@ -7,7 +7,6 @@ import {
   Ship,
   MapPin,
   Calendar,
-  Clock,
   CreditCard,
   CheckCircle2,
   XCircle,
@@ -47,14 +46,6 @@ export default function BookingDetails({ booking, onUpdated }) {
       year: "numeric",
       month: "long",
       day: "numeric",
-    });
-  };
-
-  const formatTime = (time) => {
-    if (!time) return "N/A";
-    return new Date(time).toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
     });
   };
 
@@ -264,12 +255,6 @@ export default function BookingDetails({ booking, onUpdated }) {
                     <p className="font-medium">
                       {booking.boardingPoint?.locationName}
                     </p>
-                    <div className="flex items-center gap-2 text-sm">
-                      <Clock className="h-4 w-4 text-sky-500" />
-                      <span>
-                        {formatTime(booking.boardingPoint?.arrivalTime)}
-                      </span>
-                    </div>
                   </div>
                 </div>
                 <div className="flex gap-3">
@@ -283,12 +268,6 @@ export default function BookingDetails({ booking, onUpdated }) {
                     <p className="font-medium">
                       {booking.droppingPoint?.locationName}
                     </p>
-                    <div className="flex items-center gap-2 text-sm">
-                      <Clock className="h-4 w-4 text-green-500" />
-                      <span>
-                        {formatTime(booking.droppingPoint?.arrivalTime)}
-                      </span>
-                    </div>
                   </div>
                 </div>
               </div>

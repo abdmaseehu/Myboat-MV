@@ -178,17 +178,16 @@ const CANCELLATION =
         distance: km,
         isActive: true,
         userId: owner.user.id,
+        // Points are locations only - the schedule owns all timing.
         boardingPoints: {
           create: (JETTY[from] || [`${from} Harbour`]).map((locationName, idx) => ({
             locationName,
-            arrivalTime: at(departures[0]),
             sequenceNumber: idx + 1,
           })),
         },
         droppingPoints: {
           create: (JETTY[to] || [`${to} Harbour`]).map((locationName, idx) => ({
             locationName,
-            arrivalTime: at(departures[0]),
             sequenceNumber: idx + 1,
           })),
         },

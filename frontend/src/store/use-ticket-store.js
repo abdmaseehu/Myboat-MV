@@ -1,9 +1,14 @@
+import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 const useTicketStore = create(
   persist(
     (set, get) => ({
+      // True once persisted state has been read back from localStorage.
+      // Guards must wait for this — see useTicketStoreHydrated() below.
+      hasHydrated: false,
+
       // Vehicle and booking information
       selectedVehicle: null,
       selectedSeats: [],
@@ -87,9 +92,43 @@ const useTicketStore = create(
     }),
     {
       name: 'ticket-store',
+      // Hydration is deferred to the client so server and first client render
+      // agree. Nothing read the store back before, which meant a full page load
+      // (e.g. arriving at checkout after login) always saw an empty selection.
       skipHydration: true,
+      // Never persist the flag itself, or a stale `true` would be restored
+      // before rehydration actually finished.
+      partialize: ({ hasHydrated, ...rest }) => rest,
+      onRehydrateStorage: () => () => {
+        useTicketStore.setState({ hasHydrated: true });
+      },
     }
   )
 );
 
-export default useTicketStore; 
+/**
+ * Kicks off rehydration on mount and reports when it has finished.
+ * Any component that redirects based on store contents must wait for this,
+ * otherwise it runs against the empty initial state and bounces the user.
+ */
+export function useTicketStoreHydrated() {
+  const hasHydrated = useTicketStore((state) => state.hasHydrated);
+  const [started, setStarted] = useState(false);
+
+  useEffect(() => {
+    if (started) return;
+    setStarted(true);
+    // Resolves synchronously for localStorage, but await covers custom storages.
+    Promise.resolve(useTicketStore.persist.rehydrate()).then(() => {
+      // onRehydrateStorage fires for us; this is a belt-and-braces fallback in
+      // case there was nothing stored at all.
+      if (!useTicketStore.getState().hasHydrated) {
+        useTicketStore.setState({ hasHydrated: true });
+      }
+    });
+  }, [started]);
+
+  return hasHydrated;
+}
+
+export default useTicketStore;

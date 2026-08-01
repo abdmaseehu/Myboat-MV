@@ -83,15 +83,6 @@ const formatScheduleTime = (date) => {
   }
 };
 
-const formatPointTime = (time) => {
-  if (!time) return "Time not specified";
-  try {
-    return format(new Date(time), "hh:mm a");
-  } catch (error) {
-    return "Invalid time";
-  }
-};
-
 const CATEGORY_OPTIONS = [
   {
     value: "LOCAL",
@@ -598,14 +589,8 @@ export default function TicketList({ routeId, date }) {
                       {/* Additional Features */}
                       <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-800">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <BoardingPointsDialog
-                            vehicle={vehicle}
-                            formatPointTime={formatPointTime}
-                          />
-                          <DroppingPointsDialog
-                            vehicle={vehicle}
-                            formatPointTime={formatPointTime}
-                          />
+                          <BoardingPointsDialog vehicle={vehicle} />
+                          <DroppingPointsDialog vehicle={vehicle} />
                           <CancellationPolicyDialog />
                         </div>
                       </div>

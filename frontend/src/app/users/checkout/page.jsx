@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
-import useTicketStore from "@/store/use-ticket-store";
+import useTicketStore, { useTicketStoreHydrated } from "@/store/use-ticket-store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -18,6 +18,7 @@ import { useSettings } from "@/hooks/use-settings";
 
 export default function CheckoutPage() {
   const router = useRouter();
+  const hydrated = useTicketStoreHydrated();
   const [stripePromise, setStripePromise] = useState(null);
   const [clientSecret, setClientSecret] = useState("");
   const [paymentIntentId, setPaymentIntentId] = useState("");
@@ -88,13 +89,15 @@ export default function CheckoutPage() {
     setTotalAmount(total);
   }, [selectedSeats, setTotalAmount, tierPricePerSeat]);
 
+  // Only judge the selection once the persisted store has been read back.
+  // Running this against the empty initial state sent people home mid-booking.
   useEffect(() => {
-    console.log("selectedVehicle", selectedVehicle);
-    console.log(selectedVehicle?.user?.vendor?.userId);
+    if (!hydrated) return;
     if (!selectedVehicle || !selectedSeats.length || !selectedBoardingPoint) {
+      toast.error("Your booking selection expired. Please pick your seats again.");
       router.push("/");
     }
-  }, [selectedVehicle, selectedSeats, selectedBoardingPoint, router]);
+  }, [hydrated, selectedVehicle, selectedSeats, selectedBoardingPoint, router]);
 
   // Initialize payment intent when selecting card payment
   const initializeStripePayment = async () => {
@@ -156,13 +159,22 @@ export default function CheckoutPage() {
   const handlePayment = async () => {
     try {
       setLoading(true);
+      const vendorId = selectedVehicle?.user?.vendor?.userId;
+      if (!vendorId) {
+        toast.error("This vessel has no operator assigned. Please contact support.");
+        return;
+      }
+
       const bookingData = {
         vehicleId: selectedVehicle.id,
-        vendorId: selectedVehicle.user.vendor.userId,
-        routeId: selectedVehicle.route.id,
+        vendorId,
+        routeId: selectedVehicle?.route?.id,
         boardingPointId: selectedBoardingPoint.id,
-        droppingPointId: selectedVehicle.route.droppingPoints[0].id,
-        bookingDate: new Date().toISOString(),
+        droppingPointId: selectedVehicle?.route?.droppingPoints?.[0]?.id ?? null,
+        // The date the customer actually searched for, not today.
+        bookingDate: bookingDate
+          ? new Date(bookingDate).toISOString()
+          : new Date().toISOString(),
         seatNumbers: selectedSeats,
         totalAmount: totalAmount,
         discountAmount: 0,
@@ -217,6 +229,15 @@ export default function CheckoutPage() {
       },
     },
   };
+
+  // Wait for the persisted selection before rendering anything that depends on it
+  if (!hydrated) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   // Show loading state while fetching the Stripe key
   if (isLoadingStripe) {
@@ -327,9 +348,6 @@ export default function CheckoutPage() {
                 <h3 className="font-medium">Boarding Point</h3>
                 <p className="text-sm text-muted-foreground">
                   {selectedBoardingPoint?.locationName}
-                </p>
-                <p className="text-sm text-sky-500">
-                  {selectedBoardingPoint?.arrivalTime}
                 </p>
               </div>
             </div>

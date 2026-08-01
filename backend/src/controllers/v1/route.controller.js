@@ -11,14 +11,13 @@ const routeSchema = z.object({
   distance: z.number().positive('Distance must be a positive number').optional(),
   durationMinutes: z.coerce.number().int().positive('Duration must be a positive number').optional(),
   isActive: z.boolean().optional().default(true),
+  // Points are locations only - the schedule owns all timing.
   boardingPoints: z.array(z.object({
     locationName: z.string().min(2),
-    arrivalTime: z.string().optional(),
     sequenceNumber: z.number().int().min(1).optional(),
   })).optional(),
   droppingPoints: z.array(z.object({
     locationName: z.string().min(2),
-    arrivalTime: z.string().optional(),
     sequenceNumber: z.number().int().min(1).optional(),
   })).optional(),
 });
@@ -142,18 +141,8 @@ const createRoute = async (req, res) => {
         ...routeData,
         // Stamp ownership so a vendor's routes stay scoped to them
         userId: req.user?.role === 'VENDOR' ? req.user.id : routeData.userId,
-        boardingPoints: boardingPoints ? {
-          create: boardingPoints.map(point => ({
-            ...point,
-            arrivalTime: point.arrivalTime ? new Date(point.arrivalTime).toISOString() : undefined,
-          })),
-        } : undefined,
-        droppingPoints: droppingPoints ? {
-          create: droppingPoints.map(point => ({
-            ...point,
-            arrivalTime: point.arrivalTime ? new Date(point.arrivalTime).toISOString() : undefined,
-          })),
-        } : undefined,
+        boardingPoints: boardingPoints ? { create: boardingPoints } : undefined,
+        droppingPoints: droppingPoints ? { create: droppingPoints } : undefined,
       },
       include: {
         boardingPoints: true,
@@ -217,17 +206,11 @@ const updateRoute = async (req, res) => {
         ...routeData,
         boardingPoints: boardingPoints ? {
           deleteMany: {},  // Delete existing points
-          create: boardingPoints.map(point => ({
-            ...point,
-            arrivalTime: point.arrivalTime ? new Date(point.arrivalTime) : undefined,
-          })),
+          create: boardingPoints,
         } : undefined,
         droppingPoints: droppingPoints ? {
           deleteMany: {},  // Delete existing points
-          create: droppingPoints.map(point => ({
-            ...point,
-            arrivalTime: point.arrivalTime ? new Date(point.arrivalTime) : undefined,
-          })),
+          create: droppingPoints,
         } : undefined,
       },
       include: {

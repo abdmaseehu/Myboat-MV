@@ -515,7 +515,6 @@ const getRoutesList = async (req, res) => {
           select: {
             id: true,
             locationName: true,
-            arrivalTime: true,
             sequenceNumber: true,
           },
           orderBy: {
@@ -526,7 +525,6 @@ const getRoutesList = async (req, res) => {
           select: {
             id: true,
             locationName: true,
-            arrivalTime: true,
             sequenceNumber: true,
           },
           orderBy: {

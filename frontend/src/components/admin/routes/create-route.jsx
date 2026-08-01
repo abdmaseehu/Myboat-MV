@@ -30,13 +30,6 @@ import { cn } from "@/lib/utils";
 // How many pairs to list in the preview before collapsing into "+N more"
 const PREVIEW_LIMIT = 8;
 
-// Format time for API submission
-const formatTimeForSubmission = (time) => {
-  if (!time) return null;
-  const today = new Date().toISOString().split("T")[0];
-  return new Date(`${today}T${time}`).toISOString();
-};
-
 // A duplicate (sourceCity, destinationCity) pair trips the DB unique index.
 // The API returns 409, but older deployments surface it as a 500 carrying the
 // Prisma unique-constraint message - treat both as "already existed".
@@ -98,7 +91,6 @@ export default function CreateRoute({ open, onClose, onSuccess }) {
         ...prev.boardingPoints,
         {
           locationName: "",
-          arrivalTime: "",
           sequenceNumber: prev.boardingPoints.length + 1,
         },
       ],
@@ -130,7 +122,6 @@ export default function CreateRoute({ open, onClose, onSuccess }) {
         ...prev.droppingPoints,
         {
           locationName: "",
-          arrivalTime: "",
           sequenceNumber: prev.droppingPoints.length + 1,
         },
       ],
@@ -173,19 +164,18 @@ export default function CreateRoute({ open, onClose, onSuccess }) {
         ? Number(formData.durationMinutes)
         : undefined,
       isActive: formData.isActive,
+      // Points are locations only — the schedule owns all timing.
       boardingPoints: formData.boardingPoints
         .filter((point) => point.locationName?.length >= 2)
         .map((point) => ({
           locationName: point.locationName,
           sequenceNumber: point.sequenceNumber,
-          arrivalTime: formatTimeForSubmission(point.arrivalTime),
         })),
       droppingPoints: formData.droppingPoints
         .filter((point) => point.locationName?.length >= 2)
         .map((point) => ({
           locationName: point.locationName,
           sequenceNumber: point.sequenceNumber,
-          arrivalTime: formatTimeForSubmission(point.arrivalTime),
         })),
     };
 
@@ -367,17 +357,6 @@ export default function CreateRoute({ open, onClose, onSuccess }) {
                     disabled={loading}
                     className="flex-1"
                   />
-                  <div className="flex-1 space-y-2">
-                    <Label>Arrival Time</Label>
-                    <Input
-                      type="time"
-                      value={point.arrivalTime}
-                      onChange={(e) =>
-                        updateBoardingPoint(index, "arrivalTime", e.target.value)
-                      }
-                      className="bg-background rounded-2xl h-11"
-                    />
-                  </div>
                   <Button
                     type="button"
                     variant="ghost"
@@ -424,17 +403,6 @@ export default function CreateRoute({ open, onClose, onSuccess }) {
                     disabled={loading}
                     className="flex-1"
                   />
-                  <div className="flex-1 space-y-2">
-                    <Label>Arrival Time</Label>
-                    <Input
-                      type="time"
-                      value={point.arrivalTime}
-                      onChange={(e) =>
-                        updateDroppingPoint(index, "arrivalTime", e.target.value)
-                      }
-                      className="bg-background rounded-2xl h-11"
-                    />
-                  </div>
                   <Button
                     type="button"
                     variant="ghost"
