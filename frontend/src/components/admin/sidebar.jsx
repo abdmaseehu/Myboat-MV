@@ -74,6 +74,22 @@ const adminRoutes = [
     ],
   },
   {
+    group: "Vessel Management",
+    items: [
+      {
+        label: "Seat Layouts",
+        icon: Ship,
+        href: "/admin/bus-layouts",
+        color: "text-sky-500",
+      },
+      {
+        label: "Vessels",
+        icon: Ship,
+        href: "/admin/vehicles",
+        color: "text-sky-500",
+      },
+    ],
+  },  {
     group: "Route Management",
     items: [
       {
@@ -102,23 +118,7 @@ const adminRoutes = [
       },
     ],
   },
-  {
-    group: "Vessel Management",
-    items: [
-      {
-        label: "Seat Layouts",
-        icon: Ship,
-        href: "/admin/bus-layouts",
-        color: "text-sky-500",
-      },
-      {
-        label: "Vessels",
-        icon: Ship,
-        href: "/admin/vehicles",
-        color: "text-sky-500",
-      },
-    ],
-  },
+
   {
     group: "Operations",
     items: [
@@ -247,15 +247,15 @@ const vendorRoutes = [
     group: "Operations",
     items: [
       {
-        label: "Routes",
-        icon: Map,
-        href: "/admin/routes",
-        color: "text-sky-500",
-      },
-      {
         label: "Vessels",
         icon: Ship,
         href: "/admin/vehicles",
+        color: "text-sky-500",
+      },
+      {
+        label: "Routes",
+        icon: Map,
+        href: "/admin/routes",
         color: "text-sky-500",
       },
       {

@@ -11,6 +11,10 @@ const DeleteVehicle = dynamic(() => import("./delete-vehicle"), {
   ssr: false,
 });
 
+const EditVehicle = dynamic(() => import("./edit-vehicle"), {
+  ssr: false,
+});
+
 // Format date
 const formatDate = (date) => {
   if (!date) return "N/A";
@@ -67,7 +71,7 @@ const formatAmenities = (amenities) => {
 
 // Column definitions
 const columns = [
-  { key: "vehicleInfo", header: "Vehicle Info" },
+  { key: "vehicleInfo", header: "Vessel Info" },
   { key: "details", header: "Details" },
   { key: "amenities", header: "Amenities" },
   { key: "status", header: "Status" },
@@ -147,6 +151,11 @@ const DeleteVehicleWrapper = ({ item, ...props }) => {
   return <DeleteVehicle vehicle={item} {...props} />;
 };
 
+// EditVehicle takes a `vehicle` prop; the list hands modals an `item` prop.
+const EditVehicleWrapper = ({ item, ...props }) => {
+  return <EditVehicle vehicle={item} {...props} />;
+};
+
 // Create the dynamic vehicle list component
 const VehicleListFactory = createDynamicList({
   title: "Vessels",
@@ -163,9 +172,10 @@ const VehicleListFactory = createDynamicList({
     href: "/admin/vehicles/create",
   },
   DeleteModal: DeleteVehicleWrapper,
+  EditModal: EditVehicleWrapper,
   searchPlaceholder: "Search vessels...",
   deleteEndpoint: "/vehicles/:id",
-  EditMode: false,
+  EditMode: true,
 });
 
 export default VehicleListFactory;
