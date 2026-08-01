@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import NotificationBell from "@/components/common/notification-bell";
 import Link from "next/link";
 
 export default function TopNav() {
@@ -38,6 +39,7 @@ export default function TopNav() {
 
         {/* Right Side Items */}
         <div className="flex items-center gap-3">
+          {user && <NotificationBell />}
           <ThemeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

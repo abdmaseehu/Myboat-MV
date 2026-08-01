@@ -49,6 +49,42 @@ const isAuthenticated = async (req, res, next) => {
   }
 };
 
+// Populates req.user when a valid token is present, but never rejects the
+// request. Used on public endpoints that still need to scope results per role
+// (e.g. GET /routes is public for the website, but a VENDOR should only see
+// their own routes).
+const optionalAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return next();
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+      },
+    });
+
+    if (user) {
+      req.user = user;
+    }
+  } catch (error) {
+    // Invalid/expired token on a public endpoint - continue anonymously
+  }
+
+  return next();
+};
+
 module.exports = {
   isAuthenticated,
-}; 
+  optionalAuth,
+};

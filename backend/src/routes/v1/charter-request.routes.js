@@ -9,6 +9,8 @@ const {
   updateRequest,
   deleteRequest,
   getAllRequests,
+  getPaymentInfo,
+  markPaid,
 } = require('../../controllers/v1/charter-request.controller');
 const { isAuthenticated } = require('../../middleware/auth.middleware');
 const { isAdmin } = require('../../middleware/role.middleware');
@@ -18,8 +20,10 @@ router.use(isAuthenticated);
 router.get('/all', isAdmin, getAllRequests);
 router.get('/requested-by-me', getRequestsIRequested);
 router.get('/', getMyRequests);
+router.get('/:id/payment-info', getPaymentInfo);
 router.get('/:id', getRequestById);
 router.post('/', createRequest);
+router.post('/:id/mark-paid', markPaid);
 router.patch('/:id/quote', sendQuote);
 router.patch('/:id', updateRequest);
 router.delete('/:id', deleteRequest);

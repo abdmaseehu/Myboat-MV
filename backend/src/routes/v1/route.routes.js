@@ -1,6 +1,6 @@
 const express = require('express');
-const { isAuthenticated } = require('../../middleware/auth.middleware');
-const { isAdmin } = require('../../middleware/role.middleware');
+const { isAuthenticated, optionalAuth } = require('../../middleware/auth.middleware');
+const { isAdminOrVendor } = require('../../middleware/role.middleware');
 const {
   getAllRoutes,
   getRouteById,
@@ -11,13 +11,16 @@ const {
 
 const router = express.Router();
 
-// Public routes
-router.get('/', getAllRoutes);
-router.get('/:id', getRouteById);
+// Public routes. optionalAuth attaches req.user when a token is present so the
+// controller can scope results to a VENDOR's own routes without blocking the
+// anonymous public website.
+router.get('/', optionalAuth, getAllRoutes);
+router.get('/:id', optionalAuth, getRouteById);
 
-// Protected routes (Admin only)
-router.post('/', isAuthenticated, isAdmin, createRoute);
-router.put('/:id', isAuthenticated, isAdmin, updateRoute);
-router.delete('/:id', isAuthenticated, isAdmin, deleteRoute);
+// Protected routes (Admin or Vendor - vendors are scoped to their own routes
+// inside the controller)
+router.post('/', isAuthenticated, isAdminOrVendor, createRoute);
+router.put('/:id', isAuthenticated, isAdminOrVendor, updateRoute);
+router.delete('/:id', isAuthenticated, isAdminOrVendor, deleteRoute);
 
-module.exports = router; 
+module.exports = router;

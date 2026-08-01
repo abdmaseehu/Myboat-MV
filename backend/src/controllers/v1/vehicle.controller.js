@@ -8,6 +8,22 @@ const vehicleSchema = z.object({
   vehicleName: z.string().min(2, 'Vehicle name must be at least 2 characters'),
   vehicleNumber: z.string().min(2, 'Vehicle number must be at least 2 characters'),
   vehicleImage: z.string().optional().nullable(),
+  // Filenames of gallery images the client wants to KEEP (edit flow). Newly
+  // uploaded files arrive separately on req.files and are appended to these.
+  keepImages: z
+    .union([
+      z.array(z.string()),
+      z.string().transform((s) => {
+        if (!s) return []
+        try {
+          const parsed = JSON.parse(s)
+          return Array.isArray(parsed) ? parsed : []
+        } catch {
+          return []
+        }
+      }),
+    ])
+    .optional(),
   vehicleStatus: z.enum(['AVAILABLE', 'BOOKED', 'MAINTENANCE', 'INACTIVE']).default('AVAILABLE'),
   vehicleRating: z.number().min(0).max(5).optional().nullable(),
   totalSeats: z.number().min(1, 'Total seats must be at least 1'),
@@ -48,6 +64,25 @@ const vehicleSchema = z.object({
     .union([z.boolean(), z.enum(['true', 'false']).transform((s) => s === 'true')])
     .optional(),
 });
+
+const MAX_VESSEL_IMAGES = 5;
+
+/**
+ * Routes use upload.fields(), so uploaded files land on `req.files` keyed by
+ * field name (not `req.file`). Collect the gallery for a create/update.
+ *
+ * @param {object} req
+ * @param {string[]} keep filenames the client asked to retain (edit flow)
+ * @returns {string[]} up to MAX_VESSEL_IMAGES filenames
+ */
+function collectVesselImages(req, keep = []) {
+  const uploaded = [
+    ...(req.files?.vesselImages || []),
+    ...(req.files?.vehicleImage || []),
+  ].map((f) => f.filename);
+
+  return [...keep, ...uploaded].filter(Boolean).slice(0, MAX_VESSEL_IMAGES);
+}
 
 // Get all vehicles with pagination and filters
 const getAllVehicles = async (req, res) => {
@@ -234,16 +269,22 @@ const createVehicle = async (req, res) => {
     };
 
     const validatedData = vehicleSchema.parse(dataToValidate);
+    const { keepImages, ...vesselData } = validatedData;
+
+    // Up to 5 gallery images; the first doubles as the legacy cover image so
+    // existing list/detail views that read `vehicleImage` keep working.
+    const images = collectVesselImages(req);
 
     // Create vehicle with validated data
     const vehicle = await prisma.vehicle.create({
       data: {
-        ...validatedData,
+        ...vesselData,
         userId: req.user.id,
         amenities: validatedData.amenities,
         // startDate is already properly formatted by the schema
         startDate: validatedData.startDate,
-        vehicleImage: req.file?.filename || null,
+        images,
+        vehicleImage: images[0] || null,
       },
       include: {
         route: {
@@ -312,12 +353,33 @@ const updateVehicle = async (req, res) => {
       });
     }
     
+    const { keepImages, ...vesselData } = validatedData;
+
+    // Gallery = images the client kept + any newly uploaded ones. When the
+    // client sends no `keepImages` at all we treat it as "leave the gallery
+    // alone" rather than "delete everything", unless new files came in.
+    const existingImages = Array.isArray(existingVehicle.images)
+      ? existingVehicle.images
+      : [];
+    const hasNewUploads =
+      (req.files?.vesselImages?.length || 0) + (req.files?.vehicleImage?.length || 0) > 0;
+
+    let images = existingImages;
+    if (keepImages !== undefined || hasNewUploads) {
+      images = collectVesselImages(req, keepImages ?? existingImages);
+    }
+
     const vehicle = await prisma.vehicle.update({
       where: { id },
       data: {
-        ...validatedData,
-        amenities: validatedData.amenities ? JSON.parse(validatedData.amenities) : null,
+        ...vesselData,
+        amenities:
+          typeof validatedData.amenities === 'string'
+            ? JSON.parse(validatedData.amenities)
+            : validatedData.amenities ?? null,
         startDate: validatedData.startDate ? new Date(validatedData.startDate) : null,
+        images,
+        vehicleImage: images[0] || existingVehicle.vehicleImage || null,
       },
       include: {
         route: {

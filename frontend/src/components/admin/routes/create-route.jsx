@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { z } from "zod";
-import { Plus, X, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,79 +20,77 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  IslandMultiSelect,
+  IslandSingleSelect,
+} from "@/components/common/island-select";
 import api from "@/lib/axios";
 import { cn } from "@/lib/utils";
 
-// Validation schema
-const routeSchema = z.object({
-  sourceCity: z.string().min(2, "Departure location is required"),
-  destinationCity: z
-    .string()
-    .min(2, "Destination location is required"),
-  serviceType: z
-    .enum(["SCHEDULED_FERRY", "PRIVATE_CHARTER", "LOGISTICS"])
-    .default("SCHEDULED_FERRY"),
-  distance: z
-    .number()
-    .positive("Distance must be a positive number")
-    .optional(),
-  isActive: z.boolean().optional(),
-  boardingPoints: z
-    .array(
-      z.object({
-        locationName: z.string().min(2),
-        arrivalTime: z.string().optional(),
-        sequenceNumber: z.number().int().min(1).optional(),
-      })
-    )
-    .optional(),
-  droppingPoints: z
-    .array(
-      z.object({
-        locationName: z.string().min(2),
-        arrivalTime: z.string().optional(),
-        sequenceNumber: z.number().int().min(1).optional(),
-      })
-    )
-    .optional(),
-});
+// How many pairs to list in the preview before collapsing into "+N more"
+const PREVIEW_LIMIT = 8;
 
 // Format time for API submission
 const formatTimeForSubmission = (time) => {
   if (!time) return null;
-  // Get current date in YYYY-MM-DD format
   const today = new Date().toISOString().split("T")[0];
-  // Combine date and time
   return new Date(`${today}T${time}`).toISOString();
 };
 
-export default function CreateRoute({ open, onClose }) {
+// A duplicate (sourceCity, destinationCity) pair trips the DB unique index.
+// The API returns 409, but older deployments surface it as a 500 carrying the
+// Prisma unique-constraint message - treat both as "already existed".
+const isDuplicateError = (error) => {
+  const status = error?.response?.status;
+  if (status === 409) return true;
+  const message = error?.response?.data?.message || "";
+  return /unique constraint|already exists/i.test(message);
+};
+
+export default function CreateRoute({ open, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    sourceCity: "",
-    destinationCity: "",
+    sourceCities: [],
+    destinationCities: [],
     serviceType: "SCHEDULED_FERRY",
     distance: "",
+    durationMinutes: "",
     isActive: true,
     boardingPoints: [],
     droppingPoints: [],
   });
-  const [errors, setErrors] = useState({});
 
-  // Handle form input changes
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: undefined }));
-    }
+  // Every (from, to) combination, minus same-island pairs.
+  const pairs = useMemo(() => {
+    const result = [];
+    formData.sourceCities.forEach((from) => {
+      formData.destinationCities.forEach((to) => {
+        if (from !== to) result.push({ from, to });
+      });
+    });
+    return result;
+  }, [formData.sourceCities, formData.destinationCities]);
+
+  const resetForm = () => {
+    setFormData({
+      sourceCities: [],
+      destinationCities: [],
+      serviceType: "SCHEDULED_FERRY",
+      distance: "",
+    durationMinutes: "",
+      isActive: true,
+      boardingPoints: [],
+      droppingPoints: [],
+    });
   };
 
-  // Handle boarding points
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  /* ---------------------------- boarding points --------------------------- */
+
   const addBoardingPoint = () => {
     setFormData((prev) => ({
       ...prev,
@@ -124,7 +121,8 @@ export default function CreateRoute({ open, onClose }) {
     }));
   };
 
-  // Handle dropping points
+  /* ---------------------------- dropping points --------------------------- */
+
   const addDroppingPoint = () => {
     setFormData((prev) => ({
       ...prev,
@@ -155,111 +153,125 @@ export default function CreateRoute({ open, onClose }) {
     }));
   };
 
-  // Format time for display
-  const formatTime = (time) => {
-    if (!time) return "";
-    return new Date(`2000-01-01T${time}`).toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
+  /* -------------------------------- submit -------------------------------- */
 
-  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    try {
-      setLoading(true);
+    if (pairs.length === 0) {
+      toast.error("Select at least one departure and one destination");
+      return;
+    }
 
-      // Format data for submission
-      const submissionData = {
-        ...formData,
-        distance: formData.distance ? Number(formData.distance) : undefined,
-        boardingPoints: formData.boardingPoints.map((point) => ({
-          ...point,
+    setLoading(true);
+
+    // Fields shared by every generated route
+    const basePayload = {
+      serviceType: formData.serviceType,
+      distance: formData.distance ? Number(formData.distance) : undefined,
+      durationMinutes: formData.durationMinutes
+        ? Number(formData.durationMinutes)
+        : undefined,
+      isActive: formData.isActive,
+      boardingPoints: formData.boardingPoints
+        .filter((point) => point.locationName?.length >= 2)
+        .map((point) => ({
+          locationName: point.locationName,
+          sequenceNumber: point.sequenceNumber,
           arrivalTime: formatTimeForSubmission(point.arrivalTime),
         })),
-        droppingPoints: formData.droppingPoints.map((point) => ({
-          ...point,
+      droppingPoints: formData.droppingPoints
+        .filter((point) => point.locationName?.length >= 2)
+        .map((point) => ({
+          locationName: point.locationName,
+          sequenceNumber: point.sequenceNumber,
           arrivalTime: formatTimeForSubmission(point.arrivalTime),
         })),
-      };
+    };
 
-      // Validate form data
-      const validatedData = routeSchema.parse(submissionData);
+    let created = 0;
+    let duplicates = 0;
+    let failed = 0;
 
-      // Submit to API
-      await api.post("/routes", validatedData);
-
-      toast.success("Route created successfully");
-      onClose();
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const newErrors = {};
-        error.errors.forEach((err) => {
-          newErrors[err.path[0]] = err.message;
+    // Sequential - /routes creates one route at a time, and serialising keeps
+    // the unique-constraint errors attributable to a specific pair.
+    for (const pair of pairs) {
+      try {
+        await api.post("/routes", {
+          ...basePayload,
+          sourceCity: pair.from,
+          destinationCity: pair.to,
         });
-        setErrors(newErrors);
-        error.errors.forEach((err) => {
-          toast.error(err.message);
-        });
-      } else {
-        toast.error(error.response?.data?.message || "Error creating route");
+        created += 1;
+      } catch (error) {
+        if (isDuplicateError(error)) {
+          duplicates += 1;
+        } else {
+          failed += 1;
+        }
       }
-    } finally {
-      setLoading(false);
+    }
+
+    setLoading(false);
+
+    if (created > 0) {
+      toast.success(`Created ${created} route${created === 1 ? "" : "s"}`);
+    }
+    if (duplicates > 0) {
+      toast.info(
+        `${duplicates} route${duplicates === 1 ? "" : "s"} already existed`
+      );
+    }
+    if (failed > 0) {
+      toast.error(`${failed} route${failed === 1 ? "" : "s"} failed to create`);
+    }
+
+    if (created > 0) {
+      onSuccess?.();
+      resetForm();
+      onClose();
     }
   };
 
+  const handleOpenChange = (nextOpen) => {
+    if (!nextOpen && !loading) onClose();
+  };
+
+  const previewPairs = pairs.slice(0, PREVIEW_LIMIT);
+  const hiddenCount = pairs.length - previewPairs.length;
+
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl">
         <DialogHeader>
           <DialogTitle>Create New Route</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Basic Information */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="sourceCity">From</Label>
-              <Input
-                id="sourceCity"
-                name="sourceCity"
-                value={formData.sourceCity}
-                onChange={handleChange}
-                placeholder="Departure island / port"
-                className={cn(
-                  "bg-background",
-                  errors.sourceCity && "border-destructive"
-                )}
-              />
-              {errors.sourceCity && (
-                <p className="text-sm text-destructive">{errors.sourceCity}</p>
-              )}
-            </div>
+          {/* Locations - one row each so the popovers get full width on mobile */}
+          <div className="grid grid-cols-1 gap-4">
+            <IslandMultiSelect
+              label="From (select one or more locations)"
+              placeholder="Select departure locations"
+              value={formData.sourceCities}
+              onChange={(next) =>
+                setFormData((prev) => ({ ...prev, sourceCities: next }))
+              }
+              disabled={loading}
+            />
 
-            <div className="space-y-2">
-              <Label htmlFor="destinationCity">To</Label>
-              <Input
-                id="destinationCity"
-                name="destinationCity"
-                value={formData.destinationCity}
-                onChange={handleChange}
-                placeholder="Destination island / port"
-                className={cn(
-                  "bg-background",
-                  errors.destinationCity && "border-destructive"
-                )}
-              />
-              {errors.destinationCity && (
-                <p className="text-sm text-destructive">
-                  {errors.destinationCity}
-                </p>
-              )}
-            </div>
+            <IslandMultiSelect
+              label="To (select one or more locations)"
+              placeholder="Select destination locations"
+              value={formData.destinationCities}
+              onChange={(next) =>
+                setFormData((prev) => ({ ...prev, destinationCities: next }))
+              }
+              disabled={loading}
+            />
+          </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="serviceType">Service Type</Label>
               <Select
@@ -268,7 +280,7 @@ export default function CreateRoute({ open, onClose }) {
                   setFormData((prev) => ({ ...prev, serviceType: v }))
                 }
               >
-                <SelectTrigger className="bg-background">
+                <SelectTrigger className="bg-background rounded-2xl h-11">
                   <SelectValue placeholder="Select service type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -277,28 +289,36 @@ export default function CreateRoute({ open, onClose }) {
                   <SelectItem value="LOGISTICS">Logistics</SelectItem>
                 </SelectContent>
               </Select>
-              {errors.serviceType && (
-                <p className="text-sm text-destructive">{errors.serviceType}</p>
-              )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="distance">Distance (km)</Label>
+              <Label htmlFor="distance">Nautical Miles (NM)</Label>
               <Input
                 id="distance"
                 name="distance"
                 type="number"
+                min="0"
+                step="0.1"
                 value={formData.distance}
                 onChange={handleChange}
-                placeholder="Distance in kilometers"
-                className={cn(
-                  "bg-background",
-                  errors.distance && "border-destructive"
-                )}
+                placeholder="Distance in nautical miles"
+                className="bg-background rounded-2xl h-11"
               />
-              {errors.distance && (
-                <p className="text-sm text-destructive">{errors.distance}</p>
-              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="durationMinutes">Duration (minutes)</Label>
+              <Input
+                id="durationMinutes"
+                name="durationMinutes"
+                type="number"
+                min="1"
+                step="1"
+                value={formData.durationMinutes}
+                onChange={handleChange}
+                placeholder="e.g. 90"
+                className="bg-background rounded-2xl h-11"
+              />
             </div>
           </div>
 
@@ -310,7 +330,7 @@ export default function CreateRoute({ open, onClose }) {
               onCheckedChange={(checked) =>
                 setFormData((prev) => ({ ...prev, isActive: checked }))
               }
-              className="data-[state=checked]:bg-sky-500"
+              className="data-[state=checked]:bg-lagoon"
             />
             <Label htmlFor="isActive">Active Route</Label>
           </div>
@@ -324,7 +344,7 @@ export default function CreateRoute({ open, onClose }) {
                 variant="outline"
                 size="sm"
                 onClick={addBoardingPoint}
-                className="border-sky-500 text-sky-500 hover:bg-sky-500/10"
+                className="rounded-2xl border-lagoon text-lagoon hover:bg-teal-500/10"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Point
@@ -333,42 +353,36 @@ export default function CreateRoute({ open, onClose }) {
 
             <div className="space-y-4">
               {formData.boardingPoints.map((point, index) => (
-                <div key={index} className="flex items-start gap-4">
-                  <div className="flex-1 space-y-2">
-                    <Label>Location Name</Label>
-                    <Input
-                      value={point.locationName}
-                      onChange={(e) =>
-                        updateBoardingPoint(
-                          index,
-                          "locationName",
-                          e.target.value
-                        )
-                      }
-                      placeholder="Location name"
-                      className="bg-background"
-                    />
-                  </div>
+                <div
+                  key={index}
+                  className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3"
+                >
+                  <IslandSingleSelect
+                    label="Location"
+                    placeholder="Select location"
+                    value={point.locationName}
+                    onChange={(v) =>
+                      updateBoardingPoint(index, "locationName", v)
+                    }
+                    disabled={loading}
+                    className="flex-1"
+                  />
                   <div className="flex-1 space-y-2">
                     <Label>Arrival Time</Label>
                     <Input
                       type="time"
                       value={point.arrivalTime}
                       onChange={(e) =>
-                        updateBoardingPoint(
-                          index,
-                          "arrivalTime",
-                          e.target.value
-                        )
+                        updateBoardingPoint(index, "arrivalTime", e.target.value)
                       }
-                      className="bg-background"
+                      className="bg-background rounded-2xl h-11"
                     />
                   </div>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="mt-8 hover:bg-destructive/10 hover:text-destructive"
+                    className="h-11 w-11 shrink-0 hover:bg-destructive/10 hover:text-destructive"
                     onClick={() => removeBoardingPoint(index)}
                   >
                     <X className="h-4 w-4" />
@@ -387,7 +401,7 @@ export default function CreateRoute({ open, onClose }) {
                 variant="outline"
                 size="sm"
                 onClick={addDroppingPoint}
-                className="border-sky-500 text-sky-500 hover:bg-sky-500/10"
+                className="rounded-2xl border-lagoon text-lagoon hover:bg-teal-500/10"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Point
@@ -396,42 +410,36 @@ export default function CreateRoute({ open, onClose }) {
 
             <div className="space-y-4">
               {formData.droppingPoints.map((point, index) => (
-                <div key={index} className="flex items-start gap-4">
-                  <div className="flex-1 space-y-2">
-                    <Label>Location Name</Label>
-                    <Input
-                      value={point.locationName}
-                      onChange={(e) =>
-                        updateDroppingPoint(
-                          index,
-                          "locationName",
-                          e.target.value
-                        )
-                      }
-                      placeholder="Location name"
-                      className="bg-background"
-                    />
-                  </div>
+                <div
+                  key={index}
+                  className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3"
+                >
+                  <IslandSingleSelect
+                    label="Location"
+                    placeholder="Select location"
+                    value={point.locationName}
+                    onChange={(v) =>
+                      updateDroppingPoint(index, "locationName", v)
+                    }
+                    disabled={loading}
+                    className="flex-1"
+                  />
                   <div className="flex-1 space-y-2">
                     <Label>Arrival Time</Label>
                     <Input
                       type="time"
                       value={point.arrivalTime}
                       onChange={(e) =>
-                        updateDroppingPoint(
-                          index,
-                          "arrivalTime",
-                          e.target.value
-                        )
+                        updateDroppingPoint(index, "arrivalTime", e.target.value)
                       }
-                      className="bg-background"
+                      className="bg-background rounded-2xl h-11"
                     />
                   </div>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="mt-8 hover:bg-destructive/10 hover:text-destructive"
+                    className="h-11 w-11 shrink-0 hover:bg-destructive/10 hover:text-destructive"
                     onClick={() => removeDroppingPoint(index)}
                   >
                     <X className="h-4 w-4" />
@@ -441,6 +449,38 @@ export default function CreateRoute({ open, onClose }) {
             </div>
           </div>
 
+          {/* Live preview of the cartesian product */}
+          <div className="rounded-2xl border border-teal-500/30 bg-teal-500/5 p-4">
+            <p className="text-sm font-medium text-lagoon">
+              This will create {pairs.length} route
+              {pairs.length === 1 ? "" : "s"}
+            </p>
+
+            {pairs.length > 0 ? (
+              <ul className="mt-3 space-y-1.5">
+                {previewPairs.map((pair) => (
+                  <li
+                    key={`${pair.from}->${pair.to}`}
+                    className="flex items-center gap-2 text-xs text-muted-foreground"
+                  >
+                    <span className="truncate">{pair.from}</span>
+                    <ArrowRight className="h-3 w-3 shrink-0 text-lagoon" />
+                    <span className="truncate">{pair.to}</span>
+                  </li>
+                ))}
+                {hiddenCount > 0 && (
+                  <li className="text-xs font-medium text-lagoon">
+                    +{hiddenCount} more
+                  </li>
+                )}
+              </ul>
+            ) : (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Select at least one departure and one destination location.
+              </p>
+            )}
+          </div>
+
           {/* Form Actions */}
           <div className="flex justify-end gap-4">
             <Button
@@ -448,14 +488,14 @@ export default function CreateRoute({ open, onClose }) {
               variant="outline"
               onClick={onClose}
               disabled={loading}
-              className="border-sky-500 text-sky-500 hover:bg-sky-500/10"
+              className="rounded-2xl border-lagoon text-lagoon hover:bg-teal-500/10"
             >
               Cancel
             </Button>
             <Button
               type="submit"
-              disabled={loading}
-              className="bg-sky-500 text-white hover:bg-sky-600"
+              disabled={loading || pairs.length === 0}
+              className="rounded-2xl bg-lagoon text-white hover:opacity-90"
             >
               {loading ? (
                 <>
@@ -463,7 +503,7 @@ export default function CreateRoute({ open, onClose }) {
                   Creating...
                 </>
               ) : (
-                "Create Route"
+                "Add Route"
               )}
             </Button>
           </div>

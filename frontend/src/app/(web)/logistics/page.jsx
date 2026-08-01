@@ -63,6 +63,9 @@ export default function LogisticsPage() {
   const { user } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [operators, setOperators] = useState([]);
+  // "" = broadcast to every operator (the recommended default)
+  const [vendorId, setVendorId] = useState("");
 
   const {
     register,
@@ -97,6 +100,31 @@ export default function LogisticsPage() {
     }
   }, [user, setValue]);
 
+  // Load approved operators + honour ?operator=<publicSlug> deep links.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get("/vendors/public");
+        const list = Array.isArray(res?.data?.data) ? res.data.data : [];
+        if (cancelled) return;
+        setOperators(list);
+        const slug = new URLSearchParams(window.location.search).get("operator");
+        if (slug) {
+          const match = list.find(
+            (o) => (o.publicSlug || "").toLowerCase() === slug.toLowerCase()
+          );
+          if (match) setVendorId(match.id);
+        }
+      } catch {
+        // Non-fatal: the form still works as a broadcast request.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const onSubmit = async (values) => {
     if (!user) {
       router.push("/auth/login?returnTo=/logistics");
@@ -116,7 +144,8 @@ export default function LogisticsPage() {
         guestEmail: values.guestEmail,
         guestPhone: values.guestPhone || null,
         specialRequirements: values.specialRequirements || null,
-        vendorId: null,
+        // "" -> null = broadcast to all operators
+        vendorId: vendorId || null,
       };
       await api.post("/logistics-requests", payload);
       setSuccess(true);
@@ -303,6 +332,30 @@ export default function LogisticsPage() {
                         className="rounded-2xl border-border/60 bg-white"
                         {...register("specialRequirements")}
                       />
+                    </Field>
+                  </FormSection>
+
+                  <FormSection title="Preferred Operator" icon={Ship}>
+                    <Field
+                      label="Send this request to"
+                      hint="Broadcasting to every operator usually gets you more quotes to compare."
+                    >
+                      <Select value={vendorId || "ANY"} onValueChange={(v) => setVendorId(v === "ANY" ? "" : v)}>
+                        <SelectTrigger className="h-12 rounded-2xl border-border/60 bg-white text-ocean-deep focus:ring-lagoon">
+                          <SelectValue placeholder="Any operator" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-2xl">
+                          <SelectItem value="ANY">
+                            Any operator (recommended — get more quotes)
+                          </SelectItem>
+                          {operators.map((o) => (
+                            <SelectItem key={o.id} value={o.id}>
+                              {o.businessName}
+                              {o.baseIsland ? ` — ${o.baseIsland}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </Field>
                   </FormSection>
 

@@ -12,10 +12,12 @@ const {
   getMyVendor,
   updateMyVendor,
   getVendorByPublicSlug,
+  getPublicVendors,
   getPublicVessel,
 } = require('../../controllers/v1/vendor.controller');
 
 // PUBLIC routes (no auth)
+router.get('/public', getPublicVendors);
 router.get('/public/vessel/:id', getPublicVessel);
 router.get('/public/:slug', getVendorByPublicSlug);
 

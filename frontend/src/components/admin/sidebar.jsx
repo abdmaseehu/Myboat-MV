@@ -83,6 +83,12 @@ const adminRoutes = [
         color: "text-sky-500",
       },
       {
+        label: "Islands",
+        icon: Anchor,
+        href: "/admin/islands",
+        color: "text-sky-500",
+      },
+      {
         label: "Boarding Points",
         icon: MapPin,
         href: "/admin/boarding-points",
@@ -241,6 +247,12 @@ const vendorRoutes = [
     group: "Operations",
     items: [
       {
+        label: "Routes",
+        icon: Map,
+        href: "/admin/routes",
+        color: "text-sky-500",
+      },
+      {
         label: "Vessels",
         icon: Ship,
         href: "/admin/vehicles",
@@ -268,6 +280,23 @@ const vendorRoutes = [
         label: "Check-in",
         icon: QrCode,
         href: "/admin/check-in",
+        color: "text-sky-500",
+      },
+    ],
+  },
+  {
+    group: "Requests",
+    items: [
+      {
+        label: "Charter Requests",
+        icon: Anchor,
+        href: "/admin/charter-requests",
+        color: "text-sky-500",
+      },
+      {
+        label: "Logistics Requests",
+        icon: Truck,
+        href: "/admin/logistics-requests",
         color: "text-sky-500",
       },
     ],

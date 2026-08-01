@@ -26,11 +26,17 @@ router.get('/', getAllVehicles);
 // Get vehicle by ID
 router.get('/:id', getVehicleById);
 
-// Create new vehicle with image upload
-router.post('/', upload.single('vehicleImage'), createVehicle);
+// Create new vessel — accepts up to 5 gallery images (field: vesselImages)
+// plus the legacy single `vehicleImage` field for backwards compatibility.
+const vesselUpload = upload.fields([
+  { name: 'vesselImages', maxCount: 5 },
+  { name: 'vehicleImage', maxCount: 1 },
+]);
 
-// Update vehicle with image upload
-router.put('/:id', upload.single('vehicleImage'), updateVehicle);
+router.post('/', vesselUpload, createVehicle);
+
+// Update vessel with image upload (same multi-image handling as create)
+router.put('/:id', vesselUpload, updateVehicle);
 
 // Delete vehicle
 router.delete('/:id', deleteVehicle);

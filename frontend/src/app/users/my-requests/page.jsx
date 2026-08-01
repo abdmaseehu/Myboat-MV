@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import api from "@/lib/axios";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -21,6 +22,8 @@ import {
   ArrowRight,
   Eye,
   Loader2,
+  CreditCard,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -65,8 +68,23 @@ const fmtMoney = (amount, currency = "MVR") => {
   })}`;
 };
 
+// MVR = emerald, USD = sky/blue. The two are never mixed or summed.
+const currencyClasses = (currency) =>
+  String(currency).toUpperCase() === "USD"
+    ? "text-sky-600 dark:text-sky-400"
+    : "text-emerald-600 dark:text-emerald-400";
+
+const isQuoteExpired = (req) => {
+  if (!req?.quoteValidUntil) return false;
+  const until = new Date(req.quoteValidUntil);
+  if (Number.isNaN(until.getTime())) return false;
+  until.setHours(23, 59, 59, 999);
+  return until.getTime() < Date.now();
+};
+
 export default function MyRequestsPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [charter, setCharter] = useState([]);
   const [logistics, setLogistics] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -128,9 +146,10 @@ export default function MyRequestsPage() {
           ? `/charter-requests/${acceptReq.id}`
           : `/logistics-requests/${acceptReq.id}`;
       await api.patch(url, { status: "ACCEPTED" });
-      toast.success("Quote accepted — the operator will be in touch");
+      toast.success("Quote accepted — let's get you paid up");
       setAcceptOpen(false);
-      fetchAll();
+      // Straight to payment: bank transfer instructions for the quoted currency.
+      router.push(`/users/requests/${acceptKind}/${acceptReq.id}/pay`);
     } catch (e) {
       toast.error(
         e?.response?.data?.message || e.message || "Failed to accept quote"
@@ -349,23 +368,41 @@ export default function MyRequestsPage() {
       <Dialog open={acceptOpen} onOpenChange={setAcceptOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Accept this quote?</DialogTitle>
+            <DialogTitle>Accept this quote and pay?</DialogTitle>
             <DialogDescription>
-              {acceptReq && (
-                <>
-                  You&apos;re accepting a quote of{" "}
-                  <span className="font-semibold text-sky-600 dark:text-sky-400">
-                    {fmtMoney(acceptReq.quotedPrice, acceptReq.quotedCurrency)}
-                  </span>{" "}
-                  from{" "}
-                  <span className="font-semibold">
-                    {acceptReq.vendor?.businessName || "the operator"}
-                  </span>
-                  . They&apos;ll contact you to confirm the booking.
-                </>
-              )}
+              Accepting locks in this quote with the operator. You&apos;ll go
+              straight to the payment page next.
             </DialogDescription>
           </DialogHeader>
+          {acceptReq && (
+            <div className="space-y-3 text-sm">
+              <div className="rounded-2xl border p-4 space-y-2">
+                <div className="font-medium">
+                  {acceptReq.origin} → {acceptReq.destination}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {fmtDate(acceptReq.tripDate)} ·{" "}
+                  {acceptReq.vendor?.businessName || "Operator"}
+                </div>
+                <div className="flex items-baseline justify-between border-t pt-2">
+                  <span className="text-xs text-muted-foreground">
+                    Total payable
+                  </span>
+                  <span
+                    className={`text-xl font-bold ${currencyClasses(
+                      acceptReq.quotedCurrency
+                    )}`}
+                  >
+                    {fmtMoney(
+                      acceptReq.quotedPrice,
+                      acceptReq.quotedCurrency
+                    )}
+                  </span>
+                </div>
+              </div>
+              <QuoteBreakdown req={acceptReq} kind={acceptKind} />
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setAcceptOpen(false)}>
               Cancel
@@ -373,10 +410,10 @@ export default function MyRequestsPage() {
             <Button
               onClick={confirmAccept}
               disabled={accepting}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white"
+              className="bg-coral hover:bg-coral-soft text-white"
             >
               {accepting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-              <CheckCircle2 className="h-4 w-4 mr-1" /> Accept Quote
+              <CreditCard className="h-4 w-4 mr-1" /> Accept &amp; Pay
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -450,8 +487,74 @@ function RequestList({
   );
 }
 
+function QuoteBreakdown({ req, kind }) {
+  const cur = req.quotedCurrency || "MVR";
+  const rows = [
+    kind === "logistics" && req.pricePerTon
+      ? ["Price per ton", fmtMoney(req.pricePerTon, cur)]
+      : null,
+    req.pricePerNm ? ["Price per NM", fmtMoney(req.pricePerNm, cur)] : null,
+    req.estimatedDistanceNm
+      ? ["Estimated distance", `${Number(req.estimatedDistanceNm)} NM`]
+      : null,
+    req.waitingCharges ? ["Waiting charges", req.waitingCharges] : null,
+  ].filter(Boolean);
+
+  const expired = isQuoteExpired(req);
+
+  if (
+    !rows.length &&
+    !req.priceIncludes &&
+    !req.quoteNotes &&
+    !req.quoteValidUntil
+  ) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-xl bg-white/70 dark:bg-zinc-900/40 border border-sky-500/10 p-3 space-y-2 text-xs">
+      {rows.length > 0 && (
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+          {rows.map(([label, value]) => (
+            <div key={label} className="contents">
+              <dt className="text-muted-foreground">{label}</dt>
+              <dd className="font-medium text-right">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {req.priceIncludes && (
+        <div>
+          <div className="text-muted-foreground">Price includes</div>
+          <div className="whitespace-pre-wrap">{req.priceIncludes}</div>
+        </div>
+      )}
+      {req.quoteNotes && (
+        <div>
+          <div className="text-muted-foreground">Notes</div>
+          <div className="whitespace-pre-wrap">{req.quoteNotes}</div>
+        </div>
+      )}
+      {req.quoteValidUntil && (
+        <div
+          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 ${
+            expired
+              ? "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300"
+              : "bg-muted text-muted-foreground"
+          }`}
+        >
+          {expired && <AlertTriangle className="h-3 w-3" />}
+          {expired ? "Quote expired on " : "Valid until "}
+          {fmtDate(req.quoteValidUntil)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RequestCard({ req, kind, hasCharterPro, onView, onAccept }) {
   const status = req.status;
+  const expired = isQuoteExpired(req);
   const dimmed =
     status === "REJECTED" || status === "CANCELLED"
       ? "opacity-70"
@@ -501,13 +604,17 @@ function RequestCard({ req, kind, hasCharterPro, onView, onAccept }) {
         )}
 
         {status === "QUOTED" && (
-          <div className="rounded-md bg-sky-50 dark:bg-sky-950/30 border border-sky-500/20 p-4 space-y-3">
+          <div className="rounded-2xl bg-sky-50 dark:bg-sky-950/30 border border-sky-500/20 p-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <div className="text-xs text-muted-foreground">
                   Quoted price
                 </div>
-                <div className="text-lg font-bold text-sky-600 dark:text-sky-400">
+                <div
+                  className={`text-lg font-bold ${currencyClasses(
+                    req.quotedCurrency
+                  )}`}
+                >
                   {fmtMoney(req.quotedPrice, req.quotedCurrency)}
                 </div>
               </div>
@@ -521,6 +628,8 @@ function RequestCard({ req, kind, hasCharterPro, onView, onAccept }) {
                 </div>
               )}
             </div>
+            <QuoteBreakdown req={req} kind={kind} />
+
             {!hasCharterPro && (
               <div className="rounded-md border border-dashed p-2.5 flex items-start gap-2 text-[11px] text-muted-foreground">
                 <Lock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
@@ -543,11 +652,17 @@ function RequestCard({ req, kind, hasCharterPro, onView, onAccept }) {
               <Button
                 size="sm"
                 onClick={onAccept}
-                className="bg-emerald-500 hover:bg-emerald-600 text-white"
+                disabled={expired}
+                className="bg-coral hover:bg-coral-soft text-white"
               >
-                <CheckCircle2 className="h-4 w-4 mr-1" /> Accept Quote
+                <CreditCard className="h-4 w-4 mr-1" /> Accept &amp; Pay
               </Button>
             </div>
+            {expired && (
+              <p className="text-[11px] text-muted-foreground">
+                Ask the operator to re-issue the quote to continue.
+              </p>
+            )}
           </div>
         )}
 
@@ -561,14 +676,32 @@ function RequestCard({ req, kind, hasCharterPro, onView, onAccept }) {
             {req.quotedPrice && (
               <div className="text-xs text-muted-foreground">
                 Confirmed at{" "}
-                <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                <span
+                  className={`font-semibold ${currencyClasses(
+                    req.quotedCurrency
+                  )}`}
+                >
                   {fmtMoney(req.quotedPrice, req.quotedCurrency)}
                 </span>
               </div>
             )}
-            <Button variant="outline" size="sm" onClick={onView}>
-              <Eye className="h-4 w-4 mr-1" /> View Booking
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={onView}>
+                <Eye className="h-4 w-4 mr-1" /> View Booking
+              </Button>
+              <Button
+                asChild
+                size="sm"
+                className="bg-coral hover:bg-coral-soft text-white"
+              >
+                <Link href={`/users/requests/${kind}/${req.id}/pay`}>
+                  <CreditCard className="h-4 w-4 mr-1" />
+                  {req.paymentMethod === "BANK_TRANSFER"
+                    ? "Payment Details"
+                    : "Complete Payment"}
+                </Link>
+              </Button>
+            </div>
           </div>
         )}
 

@@ -549,6 +549,38 @@ const updateMyVendor = async (req, res) => {
   }
 };
 
+// GET /vendors/public - PUBLIC (no auth) - list of approved/active operators.
+// Used by the public charter/logistics request forms so a customer can target
+// a specific operator instead of broadcasting.
+const getPublicVendors = async (req, res) => {
+  try {
+    const { search } = req.query;
+    const where = { status: 'ACTIVE' };
+    if (search) {
+      where.businessName = { contains: String(search), mode: 'insensitive' };
+    }
+
+    const vendors = await prisma.vendor.findMany({
+      where,
+      select: {
+        id: true,
+        businessName: true,
+        businessLogo: true,
+        publicSlug: true,
+        rating: true,
+        baseIsland: true,
+      },
+      orderBy: { businessName: 'asc' },
+    });
+
+    res.json({ success: true, message: 'Operators retrieved', data: vendors });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ success: false, message: error.message || 'Error retrieving operators' });
+  }
+};
+
 // GET /vendors/public/:slug - PUBLIC (no auth) - vendor profile + approved vessels
 const getVendorByPublicSlug = async (req, res) => {
   try {
@@ -673,5 +705,6 @@ module.exports = {
   getMyVendor,
   updateMyVendor,
   getVendorByPublicSlug,
+  getPublicVendors,
   getPublicVessel,
 };

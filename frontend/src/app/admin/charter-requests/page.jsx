@@ -80,8 +80,15 @@ export default function CharterRequestsPage() {
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [quoteRequest, setQuoteRequest] = useState(null);
   const [quoteForm, setQuoteForm] = useState({
+    vesselId: "",
     quotedPrice: "",
     quotedCurrency: "MVR",
+    pricePerNm: "",
+    estimatedDistanceNm: "",
+    waitingCharges: "",
+    priceIncludes: "",
+    quoteNotes: "",
+    quoteValidUntil: "",
     operatorNotes: "",
   });
   const [quoteSubmitting, setQuoteSubmitting] = useState(false);
@@ -168,24 +175,41 @@ export default function CharterRequestsPage() {
   const openQuote = (req) => {
     setQuoteRequest(req);
     setQuoteForm({
+      vesselId: req.vesselId || "",
       quotedPrice: req.quotedPrice || "",
       quotedCurrency: req.quotedCurrency || "MVR",
+      pricePerNm: req.pricePerNm || "",
+      estimatedDistanceNm: req.estimatedDistanceNm || "",
+      waitingCharges: req.waitingCharges || "",
+      priceIncludes: req.priceIncludes || "",
+      quoteNotes: req.quoteNotes || "",
+      quoteValidUntil: req.quoteValidUntil
+        ? String(req.quoteValidUntil).slice(0, 10)
+        : "",
       operatorNotes: req.operatorNotes || "",
     });
+    if (!vessels.length) fetchVessels();
     setQuoteOpen(true);
   };
 
   const submitQuote = async () => {
     if (!quoteForm.quotedPrice) {
-      toast.error("Quoted price is required");
+      toast.error("Total price is required");
       return;
     }
     try {
       setQuoteSubmitting(true);
       await api.patch(`/charter-requests/${quoteRequest.id}/quote`, {
+        vesselId: quoteForm.vesselId || null,
         quotedPrice: Number(quoteForm.quotedPrice),
         quotedCurrency: quoteForm.quotedCurrency,
-        operatorNotes: quoteForm.operatorNotes,
+        pricePerNm: quoteForm.pricePerNm || null,
+        estimatedDistanceNm: quoteForm.estimatedDistanceNm || null,
+        waitingCharges: quoteForm.waitingCharges || null,
+        priceIncludes: quoteForm.priceIncludes || null,
+        quoteNotes: quoteForm.quoteNotes || null,
+        quoteValidUntil: quoteForm.quoteValidUntil || null,
+        operatorNotes: quoteForm.operatorNotes || null,
       });
       toast.success("Quote sent to guest");
       setQuoteOpen(false);
@@ -432,48 +456,168 @@ export default function CharterRequestsPage() {
 
       {/* Quote Modal */}
       <Dialog open={quoteOpen} onOpenChange={setQuoteOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Send Quotation</DialogTitle>
             <DialogDescription>
-              Provide a quoted price for this charter request.
+              {quoteRequest ? (
+                <span className="block space-y-0.5">
+                  <span className="block font-medium text-foreground">
+                    {quoteRequest.origin} → {quoteRequest.destination}
+                  </span>
+                  <span className="block">
+                    {quoteRequest.tripDate
+                      ? new Date(quoteRequest.tripDate).toLocaleDateString()
+                      : "—"}
+                    {quoteRequest.passengers
+                      ? ` · ${quoteRequest.passengers} passenger(s)`
+                      : ""}
+                    {quoteRequest.returnTrip ? " · Return trip" : ""}
+                  </span>
+                </span>
+              ) : (
+                "Provide a quoted price for this charter request."
+              )}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div>
-              <Label>Quoted Price</Label>
-              <Input
-                type="number"
-                min="0"
-                value={quoteForm.quotedPrice}
-                onChange={(e) =>
-                  setQuoteForm((s) => ({ ...s, quotedPrice: e.target.value }))
-                }
-              />
-            </div>
-            <div>
-              <Label>Currency</Label>
+              <Label>Select Vessel</Label>
               <Select
-                value={quoteForm.quotedCurrency}
+                value={quoteForm.vesselId || "NONE"}
                 onValueChange={(v) =>
-                  setQuoteForm((s) => ({ ...s, quotedCurrency: v }))
+                  setQuoteForm((s) => ({ ...s, vesselId: v === "NONE" ? "" : v }))
                 }
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select vessel" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="MVR">MVR</SelectItem>
-                  <SelectItem value="USD">USD</SelectItem>
+                  <SelectItem value="NONE">Not assigned yet</SelectItem>
+                  {vessels.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.vehicleName}
+                      {v.vehicleNumber ? ` (${v.vehicleNumber})` : ""}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>
+                  Total Price ({quoteForm.quotedCurrency}){" "}
+                  <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={quoteForm.quotedPrice}
+                  onChange={(e) =>
+                    setQuoteForm((s) => ({ ...s, quotedPrice: e.target.value }))
+                  }
+                />
+              </div>
+              <div>
+                <Label>Currency</Label>
+                <Select
+                  value={quoteForm.quotedCurrency}
+                  onValueChange={(v) =>
+                    setQuoteForm((s) => ({ ...s, quotedCurrency: v }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MVR">MVR</SelectItem>
+                    <SelectItem value="USD">USD</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  MVR and USD are quoted independently — never combined.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Price per NM ({quoteForm.quotedCurrency})</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Optional"
+                  value={quoteForm.pricePerNm}
+                  onChange={(e) =>
+                    setQuoteForm((s) => ({ ...s, pricePerNm: e.target.value }))
+                  }
+                />
+              </div>
+              <div>
+                <Label>Est. Distance (NM)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Optional"
+                  value={quoteForm.estimatedDistanceNm}
+                  onChange={(e) =>
+                    setQuoteForm((s) => ({
+                      ...s,
+                      estimatedDistanceNm: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+
             <div>
-              <Label>Notes (optional)</Label>
-              <Textarea
-                value={quoteForm.operatorNotes}
+              <Label>Waiting Charges</Label>
+              <Input
+                placeholder="Free first 24 hours, then MVR 500/hour"
+                value={quoteForm.waitingCharges}
                 onChange={(e) =>
-                  setQuoteForm((s) => ({ ...s, operatorNotes: e.target.value }))
+                  setQuoteForm((s) => ({ ...s, waitingCharges: e.target.value }))
+                }
+              />
+            </div>
+
+            <div>
+              <Label>Price Includes</Label>
+              <Textarea
+                rows={3}
+                placeholder="Fuel, crew, drinking water, life jackets..."
+                value={quoteForm.priceIncludes}
+                onChange={(e) =>
+                  setQuoteForm((s) => ({ ...s, priceIncludes: e.target.value }))
+                }
+              />
+            </div>
+
+            <div>
+              <Label>Notes</Label>
+              <Textarea
+                rows={3}
+                value={quoteForm.quoteNotes}
+                onChange={(e) =>
+                  setQuoteForm((s) => ({ ...s, quoteNotes: e.target.value }))
+                }
+              />
+            </div>
+
+            <div>
+              <Label>Quote valid until</Label>
+              <Input
+                type="date"
+                value={quoteForm.quoteValidUntil}
+                onChange={(e) =>
+                  setQuoteForm((s) => ({
+                    ...s,
+                    quoteValidUntil: e.target.value,
+                  }))
                 }
               />
             </div>

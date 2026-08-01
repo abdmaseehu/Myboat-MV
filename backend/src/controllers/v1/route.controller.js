@@ -9,6 +9,7 @@ const routeSchema = z.object({
   destinationCity: z.string().min(2, 'Destination location is required'),
   serviceType: z.enum(['SCHEDULED_FERRY', 'PRIVATE_CHARTER', 'LOGISTICS']).optional().default('SCHEDULED_FERRY'),
   distance: z.number().positive('Distance must be a positive number').optional(),
+  durationMinutes: z.coerce.number().int().positive('Duration must be a positive number').optional(),
   isActive: z.boolean().optional().default(true),
   boardingPoints: z.array(z.object({
     locationName: z.string().min(2),
@@ -48,6 +49,12 @@ const getAllRoutes = async (req, res) => {
 
     if (isActive !== undefined) {
       where.isActive = isActive === 'true';
+    }
+
+    // A VENDOR may only see the routes they own. ADMIN (and anonymous public
+    // website traffic) continue to see everything.
+    if (req.user?.role === 'VENDOR') {
+      where.userId = req.user.id;
     }
 
     // Get total count for pagination
@@ -133,6 +140,8 @@ const createRoute = async (req, res) => {
     const route = await prisma.route.create({
       data: {
         ...routeData,
+        // Stamp ownership so a vendor's routes stay scoped to them
+        userId: req.user?.role === 'VENDOR' ? req.user.id : routeData.userId,
         boardingPoints: boardingPoints ? {
           create: boardingPoints.map(point => ({
             ...point,
@@ -166,6 +175,14 @@ const createRoute = async (req, res) => {
       });
     }
     
+    // @@unique([sourceCity, destinationCity]) - this pair already exists
+    if (error.code === 'P2002') {
+      return res.status(409).json({
+        success: false,
+        message: 'A route between these two locations already exists',
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: error.message || 'Error creating route',
@@ -178,9 +195,20 @@ const updateRoute = async (req, res) => {
   try {
     const { id } = req.params;
     const validatedData = routeSchema.parse(req.body);
-    
+
     // Extract boarding and dropping points data
     const { boardingPoints, droppingPoints, ...routeData } = validatedData;
+
+    // A vendor may only edit their own routes
+    if (req.user?.role === 'VENDOR') {
+      const existing = await prisma.route.findUnique({ where: { id } });
+      if (!existing || existing.userId !== req.user.id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. You can only modify your own routes.',
+        });
+      }
+    }
     
     // Update route with nested updates for boarding and dropping points
     const route = await prisma.route.update({
@@ -233,7 +261,18 @@ const updateRoute = async (req, res) => {
 const deleteRoute = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
+    // A vendor may only delete their own routes
+    if (req.user?.role === 'VENDOR') {
+      const existing = await prisma.route.findUnique({ where: { id } });
+      if (!existing || existing.userId !== req.user.id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. You can only delete your own routes.',
+        });
+      }
+    }
+
     // Delete associated boarding and dropping points first
     await prisma.$transaction([
       prisma.boardingPoint.deleteMany({ where: { routeId: id } }),

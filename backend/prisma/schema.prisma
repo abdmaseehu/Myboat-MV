@@ -149,6 +149,7 @@ model User {
     charterRequests             CharterRequest[]
     logisticsRequests           LogisticsRequest[]
     checkins                    Checkin[]
+    notifications               Notification[]
 
     @@map("users")
 }
@@ -201,6 +202,7 @@ model Vehicle {
     vehicleNumber         String                  @unique @map("vehicle_number")
     vehicleImage          String?                 @map("vehicle_image")
     baseIsland            String?                 @map("base_island")
+    images                Json?                   @default("[]")
     specification         Json?                   @default("{}")
     termsConditions       String?                 @map("terms_conditions")
     cancellationPolicy    String?                 @map("cancellation_policy")
@@ -241,6 +243,7 @@ model Route {
     destinationCity String          @map("destination_city")
     serviceType     ServiceType     @default(SCHEDULED_FERRY) @map("service_type")
     distance        Decimal?        @db.Decimal(10, 2)
+    durationMinutes Int?            @map("duration_minutes")
     isActive        Boolean         @default(true) @map("is_active")
     userId          String?         @map("user_id")
     createdAt       DateTime        @default(now()) @map("created_at")
@@ -563,6 +566,13 @@ model CharterRequest {
     quotedPrice          Decimal?      @map("quoted_price") @db.Decimal(12, 2)
     quotedCurrency       String?       @map("quoted_currency") @db.VarChar(3)
     quotedAt             DateTime?     @map("quoted_at")
+    pricePerNm           Decimal?      @map("price_per_nm") @db.Decimal(12, 2)
+    estimatedDistanceNm  Decimal?      @map("estimated_distance_nm") @db.Decimal(10, 2)
+    waitingCharges       String?       @map("waiting_charges")
+    priceIncludes        String?       @map("price_includes")
+    quoteNotes           String?       @map("quote_notes")
+    quoteValidUntil      DateTime?     @map("quote_valid_until") @db.Date
+    bookingId            String?       @map("booking_id")
     status               RequestStatus @default(PENDING)
     isManual             Boolean?      @default(false) @map("is_manual")
     vesselId             String?       @map("vessel_id")
@@ -604,6 +614,14 @@ model LogisticsRequest {
     quotedPrice          Decimal?      @map("quoted_price") @db.Decimal(12, 2)
     quotedCurrency       String?       @map("quoted_currency") @db.VarChar(3)
     quotedAt             DateTime?     @map("quoted_at")
+    pricePerTon          Decimal?      @map("price_per_ton") @db.Decimal(12, 2)
+    pricePerNm           Decimal?      @map("price_per_nm") @db.Decimal(12, 2)
+    estimatedDistanceNm  Decimal?      @map("estimated_distance_nm") @db.Decimal(10, 2)
+    waitingCharges       String?       @map("waiting_charges")
+    priceIncludes        String?       @map("price_includes")
+    quoteNotes           String?       @map("quote_notes")
+    quoteValidUntil      DateTime?     @map("quote_valid_until") @db.Date
+    bookingId            String?       @map("booking_id")
     status               RequestStatus @default(PENDING)
     isManual             Boolean?      @default(false) @map("is_manual")
     vesselId             String?       @map("vessel_id")
@@ -631,4 +649,66 @@ model Checkin {
     scannedBy          User?     @relation(fields: [scannedByUserId], references: [id])
 
     @@map("checkins")
+}
+
+
+enum IslandType {
+    INHABITED
+    RESORT
+    AIRPORT
+    INDUSTRIAL
+
+    @@map("island_type")
+}
+
+enum NotificationType {
+    QUOTE_RECEIVED
+    QUOTE_ACCEPTED
+    QUOTE_REJECTED
+    REQUEST_RECEIVED
+    BOOKING_CONFIRMED
+    BOOKING_CANCELLED
+    PAYMENT_RECEIVED
+    GENERAL
+
+    @@map("notification_type")
+}
+
+model Island {
+    id        String     @id @default(dbgenerated("gen_random_uuid()::text"))
+    name      String
+    atollCode String     @map("atoll_code") @db.VarChar(6)
+    atollName String     @map("atoll_name")
+    type      IslandType @default(INHABITED)
+    label     String
+    latitude  Decimal?   @db.Decimal(9, 6)
+    longitude Decimal?   @db.Decimal(9, 6)
+    isActive  Boolean    @default(true) @map("is_active")
+    createdAt DateTime   @default(now()) @map("created_at")
+    updatedAt DateTime   @updatedAt @map("updated_at")
+
+    @@unique([name, atollCode])
+    @@index([atollCode])
+    @@index([type])
+    @@index([isActive])
+    @@map("islands")
+}
+
+model Notification {
+    id         String           @id @default(dbgenerated("gen_random_uuid()::text"))
+    userId     String           @map("user_id")
+    type       NotificationType @default(GENERAL)
+    title      String
+    body       String?
+    link       String?
+    entityType String?          @map("entity_type") @db.VarChar(40)
+    entityId   String?          @map("entity_id")
+    isRead     Boolean          @default(false) @map("is_read")
+    readAt     DateTime?        @map("read_at")
+    createdAt  DateTime         @default(now()) @map("created_at")
+    user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+    @@index([userId, isRead])
+    @@map("notifications")
 }

@@ -21,6 +21,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SiteLogo } from "@/components/web/navigation/site-logo";
+import NotificationBell from "@/components/common/notification-bell";
 
 export default function WebLayout({ children }) {
   const pathname = usePathname();
@@ -64,6 +65,8 @@ export default function WebLayout({ children }) {
     if (!mounted) return null;
 
     return user ? (
+      <>
+      <NotificationBell variant={transparent ? "light" : "dark"} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
@@ -119,6 +122,7 @@ export default function WebLayout({ children }) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      </>
     ) : (
       <Button
         asChild

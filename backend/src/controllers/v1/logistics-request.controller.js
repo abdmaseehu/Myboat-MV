@@ -1,9 +1,19 @@
 const { PrismaClient } = require('@prisma/client');
+const { notify, getVendorUserId } = require('../../utils/notify');
 const prisma = new PrismaClient();
 
 const getVendorForUser = async (userId) => {
   return prisma.vendor.findUnique({ where: { userId } });
 };
+
+// Optional decimal coercion: '' / null / undefined -> null
+const toDecimal = (v) => {
+  if (v === undefined || v === null || v === '') return null;
+  const n = Number(v);
+  return Number.isNaN(n) ? null : String(n);
+};
+
+const routeLabel = (r) => `${r.origin} → ${r.destination}`;
 
 const getMyRequests = async (req, res) => {
   try {
@@ -150,6 +160,24 @@ const createRequest = async (req, res) => {
 
     const created = await prisma.logisticsRequest.create({ data });
 
+    // A customer targeting a specific operator -> tell that operator.
+    if (!isOperator && vendorId) {
+      const vendorUserId = await getVendorUserId(prisma, vendorId);
+      if (vendorUserId) {
+        await notify(prisma, {
+          userId: vendorUserId,
+          type: 'REQUEST_RECEIVED',
+          title: `New logistics request: ${routeLabel(created)}`,
+          body: `${created.cargoType || 'Cargo'} on ${new Date(created.tripDate)
+            .toISOString()
+            .slice(0, 10)}. Send a quote to win this booking.`,
+          link: '/admin/logistics-requests',
+          entityType: 'LOGISTICS_REQUEST',
+          entityId: created.id,
+        });
+      }
+    }
+
     // TODO: send confirmation email to guest + operator inbox
     return res.status(201).json({ success: true, data: created });
   } catch (error) {
@@ -163,7 +191,19 @@ const createRequest = async (req, res) => {
 const sendQuote = async (req, res) => {
   try {
     const { id } = req.params;
-    const { quotedPrice, quotedCurrency = 'MVR', operatorNotes } = req.body;
+    const {
+      quotedPrice,
+      quotedCurrency = 'MVR',
+      operatorNotes,
+      vesselId,
+      pricePerTon,
+      pricePerNm,
+      estimatedDistanceNm,
+      waitingCharges,
+      priceIncludes,
+      quoteNotes,
+      quoteValidUntil,
+    } = req.body;
 
     if (!quotedPrice) {
       return res.status(400).json({ success: false, message: 'quotedPrice required' });
@@ -190,18 +230,37 @@ const sendQuote = async (req, res) => {
       }
     }
 
-    const updated = await prisma.logisticsRequest.update({
-      where: { id },
-      data: {
-        quotedPrice,
-        quotedCurrency,
-        quotedAt: new Date(),
-        status: 'QUOTED',
-        operatorNotes: operatorNotes || request.operatorNotes,
-      },
-    });
+    const data = {
+      quotedPrice,
+      quotedCurrency,
+      quotedAt: new Date(),
+      status: 'QUOTED',
+      operatorNotes: operatorNotes || request.operatorNotes,
+      pricePerTon: toDecimal(pricePerTon),
+      pricePerNm: toDecimal(pricePerNm),
+      estimatedDistanceNm: toDecimal(estimatedDistanceNm),
+      waitingCharges: waitingCharges || null,
+      priceIncludes: priceIncludes || null,
+      quoteNotes: quoteNotes || null,
+      quoteValidUntil: quoteValidUntil ? new Date(quoteValidUntil) : null,
+    };
+    if (vesselId) data.vesselId = vesselId;
 
-    // TODO: notify customer of quote
+    const updated = await prisma.logisticsRequest.update({ where: { id }, data });
+
+    // Notify the customer that a quote landed.
+    if (updated.userId) {
+      await notify(prisma, {
+        userId: updated.userId,
+        type: 'QUOTE_RECEIVED',
+        title: `Quote received for ${routeLabel(updated)}`,
+        body: `${quotedCurrency} ${Number(quotedPrice).toLocaleString()} — review and accept in My Requests.`,
+        link: '/users/my-requests',
+        entityType: 'LOGISTICS_REQUEST',
+        entityId: updated.id,
+      });
+    }
+
     return res.json({ success: true, data: updated });
   } catch (error) {
     console.error('sendQuote logistics error', error);
@@ -241,8 +300,159 @@ const updateRequest = async (req, res) => {
     if (body.tripDate) data.tripDate = new Date(body.tripDate);
 
     const updated = await prisma.logisticsRequest.update({ where: { id }, data });
+
+    // Customer accepted / rejected the quote -> tell the operator.
+    if (
+      req.user.role === 'USER' &&
+      (data.status === 'ACCEPTED' || data.status === 'REJECTED') &&
+      updated.vendorId
+    ) {
+      const vendorUserId = await getVendorUserId(prisma, updated.vendorId);
+      if (vendorUserId) {
+        const accepted = data.status === 'ACCEPTED';
+        await notify(prisma, {
+          userId: vendorUserId,
+          type: accepted ? 'QUOTE_ACCEPTED' : 'QUOTE_REJECTED',
+          title: `${accepted ? 'Quote accepted' : 'Quote declined'}: ${routeLabel(updated)}`,
+          body: accepted
+            ? `The customer accepted your ${updated.quotedCurrency || 'MVR'} ${Number(
+                updated.quotedPrice || 0
+              ).toLocaleString()} logistics quote.`
+            : 'The customer declined your logistics quote.',
+          link: '/admin/logistics-requests',
+          entityType: 'LOGISTICS_REQUEST',
+          entityId: updated.id,
+        });
+      }
+    }
+
     return res.json({ success: true, data: updated });
   } catch (error) {
+    return res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// GET /logistics-requests/:id/payment-info
+// Only the owning customer, only once ACCEPTED, only the matching currency.
+const getPaymentInfo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const request = await prisma.logisticsRequest.findUnique({
+      where: { id },
+      include: { vessel: { select: { id: true, vehicleName: true } } },
+    });
+    if (!request) {
+      return res.status(404).json({ success: false, message: 'Request not found' });
+    }
+    if (request.userId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+    if (request.status !== 'ACCEPTED') {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Payment details are available once the quote is accepted' });
+    }
+    if (!request.vendorId) {
+      return res.status(400).json({ success: false, message: 'No operator assigned' });
+    }
+
+    const vendor = await prisma.vendor.findUnique({
+      where: { id: request.vendorId },
+      select: {
+        id: true,
+        businessName: true,
+        businessLogo: true,
+        contactEmail: true,
+        contactPhone: true,
+        bankMvrName: true,
+        bankMvrHolder: true,
+        bankMvrAccount: true,
+        bankUsdName: true,
+        bankUsdHolder: true,
+        bankUsdAccount: true,
+      },
+    });
+
+    const currency = (request.quotedCurrency || 'MVR').toUpperCase();
+    const bank =
+      currency === 'USD'
+        ? {
+            currency: 'USD',
+            bankName: vendor?.bankUsdName || null,
+            accountName: vendor?.bankUsdHolder || null,
+            accountNumber: vendor?.bankUsdAccount || null,
+          }
+        : {
+            currency: 'MVR',
+            bankName: vendor?.bankMvrName || null,
+            accountName: vendor?.bankMvrHolder || null,
+            accountNumber: vendor?.bankMvrAccount || null,
+          };
+
+    return res.json({
+      success: true,
+      data: {
+        request,
+        operator: vendor
+          ? {
+              id: vendor.id,
+              businessName: vendor.businessName,
+              businessLogo: vendor.businessLogo,
+              contactEmail: vendor.contactEmail,
+              contactPhone: vendor.contactPhone,
+            }
+          : null,
+        bank,
+        reference: `LG-${String(request.id).slice(0, 8).toUpperCase()}`,
+        cardPaymentAvailable: false,
+      },
+    });
+  } catch (error) {
+    console.error('getPaymentInfo logistics error', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// POST /logistics-requests/:id/mark-paid
+const markPaid = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const request = await prisma.logisticsRequest.findUnique({ where: { id } });
+    if (!request) {
+      return res.status(404).json({ success: false, message: 'Request not found' });
+    }
+    if (request.userId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+    if (request.status !== 'ACCEPTED') {
+      return res.status(400).json({ success: false, message: 'Request is not accepted yet' });
+    }
+
+    const updated = await prisma.logisticsRequest.update({
+      where: { id },
+      data: { paymentMethod: 'BANK_TRANSFER' },
+    });
+
+    if (updated.vendorId) {
+      const vendorUserId = await getVendorUserId(prisma, updated.vendorId);
+      if (vendorUserId) {
+        await notify(prisma, {
+          userId: vendorUserId,
+          type: 'PAYMENT_RECEIVED',
+          title: `Payment declared: ${routeLabel(updated)}`,
+          body: `Customer says they transferred ${updated.quotedCurrency || 'MVR'} ${Number(
+            updated.quotedPrice || 0
+          ).toLocaleString()} (ref LG-${String(updated.id).slice(0, 8).toUpperCase()}). Please verify.`,
+          link: '/admin/logistics-requests',
+          entityType: 'LOGISTICS_REQUEST',
+          entityId: updated.id,
+        });
+      }
+    }
+
+    return res.json({ success: true, data: updated });
+  } catch (error) {
+    console.error('markPaid logistics error', error);
     return res.status(400).json({ success: false, message: error.message });
   }
 };
@@ -312,4 +522,6 @@ module.exports = {
   updateRequest,
   deleteRequest,
   getAllRequests,
+  getPaymentInfo,
+  markPaid,
 };

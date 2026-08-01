@@ -26,7 +26,9 @@ const charterRequestRoutes = require('./charter-request.routes');
 const logisticsRequestRoutes = require('./logistics-request.routes');
 const operatorAgentRoutes = require('./operator-agent.routes');
 const checkinRoutes = require('./checkin.routes');
+const notificationRoutes = require('./notification.routes');
 const adminRoutes = require('./admin.routes');
+const islandRoutes = require('./island.routes');
 
 // Public routes (no authentication required)
 router.use('/public', publicWebRoutes);
@@ -34,6 +36,7 @@ router.use('/public', publicWebRoutes);
 // Protected routes (require authentication)
 router.use('/auth', userRoutes);
 router.use('/routes', routeRoutes);
+router.use('/islands', islandRoutes);
 router.use('/boarding-points', boardingPointRoutes);
 router.use('/dropping-points', droppingPointRoutes);
 router.use('/vendors', vendorRoutes);
@@ -55,6 +58,7 @@ router.use('/charter-requests', charterRequestRoutes);
 router.use('/logistics-requests', logisticsRequestRoutes);
 router.use('/operator-agents', operatorAgentRoutes);
 router.use('/checkins', checkinRoutes);
+router.use('/notifications', notificationRoutes);
 router.use('/admin', adminRoutes);
 
 module.exports = router;

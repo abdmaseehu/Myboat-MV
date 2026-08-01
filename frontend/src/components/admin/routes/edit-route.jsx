@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { IslandSingleSelect } from "@/components/common/island-select";
 import api from "@/lib/axios";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +37,11 @@ const routeSchema = z.object({
   distance: z
     .number()
     .positive("Distance must be a positive number")
+    .optional(),
+  durationMinutes: z
+    .number()
+    .int()
+    .positive("Duration must be a positive number")
     .optional(),
   isActive: z.boolean().optional(),
   boardingPoints: z
@@ -85,6 +91,7 @@ export default function EditRoute({ route, open, onClose, onSuccess }) {
     destinationCity: route.destinationCity || "",
     serviceType: route.serviceType || "SCHEDULED_FERRY",
     distance: route.distance || "",
+    durationMinutes: route.durationMinutes || "",
     isActive: route.isActive ?? true,
     boardingPoints: (route.boardingPoints || []).map((point) => ({
       ...point,
@@ -103,7 +110,10 @@ export default function EditRoute({ route, open, onClose, onSuccess }) {
       setFormData({
         sourceCity: route.sourceCity || "",
         destinationCity: route.destinationCity || "",
+        serviceType: route.serviceType || "SCHEDULED_FERRY",
         distance: route.distance || "",
+        durationMinutes: route.durationMinutes || "",
+    durationMinutes: route.durationMinutes || "",
         isActive: route.isActive ?? true,
         boardingPoints: (route.boardingPoints || []).map((point) => ({
           ...point,
@@ -213,6 +223,9 @@ export default function EditRoute({ route, open, onClose, onSuccess }) {
       const submissionData = {
         ...formData,
         distance: formData.distance ? Number(formData.distance) : undefined,
+        durationMinutes: formData.durationMinutes
+          ? Number(formData.durationMinutes)
+          : undefined,
         boardingPoints: formData.boardingPoints.map((point) => ({
           ...point,
           arrivalTime: formatTimeForSubmission(point.arrivalTime),
@@ -260,43 +273,25 @@ export default function EditRoute({ route, open, onClose, onSuccess }) {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Information */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="sourceCity">From</Label>
-              <Input
-                id="sourceCity"
-                name="sourceCity"
-                value={formData.sourceCity}
-                onChange={handleChange}
-                placeholder="Departure island / port"
-                className={cn(
-                  "bg-background",
-                  errors.sourceCity && "border-destructive"
-                )}
-              />
-              {errors.sourceCity && (
-                <p className="text-sm text-destructive">{errors.sourceCity}</p>
-              )}
-            </div>
+            <IslandSingleSelect
+              label="From"
+              placeholder="Select departure location"
+              value={formData.sourceCity}
+              onChange={(v) =>
+                setFormData((prev) => ({ ...prev, sourceCity: v }))
+              }
+              disabled={loading}
+            />
 
-            <div className="space-y-2">
-              <Label htmlFor="destinationCity">To</Label>
-              <Input
-                id="destinationCity"
-                name="destinationCity"
-                value={formData.destinationCity}
-                onChange={handleChange}
-                placeholder="Destination island / port"
-                className={cn(
-                  "bg-background",
-                  errors.destinationCity && "border-destructive"
-                )}
-              />
-              {errors.destinationCity && (
-                <p className="text-sm text-destructive">
-                  {errors.destinationCity}
-                </p>
-              )}
-            </div>
+            <IslandSingleSelect
+              label="To"
+              placeholder="Select destination location"
+              value={formData.destinationCity}
+              onChange={(v) =>
+                setFormData((prev) => ({ ...prev, destinationCity: v }))
+              }
+              disabled={loading}
+            />
 
             <div className="space-y-2">
               <Label htmlFor="serviceType">Service Type</Label>
@@ -318,14 +313,16 @@ export default function EditRoute({ route, open, onClose, onSuccess }) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="distance">Distance (km)</Label>
+              <Label htmlFor="distance">Nautical Miles (NM)</Label>
               <Input
                 id="distance"
                 name="distance"
                 type="number"
+                min="0"
+                step="0.1"
                 value={formData.distance}
                 onChange={handleChange}
-                placeholder="Distance in kilometers"
+                placeholder="Distance in nautical miles"
                 className={cn(
                   "bg-background",
                   errors.distance && "border-destructive"
@@ -336,6 +333,22 @@ export default function EditRoute({ route, open, onClose, onSuccess }) {
               )}
             </div>
           </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="durationMinutes">Duration (minutes)</Label>
+              <Input
+                id="durationMinutes"
+                name="durationMinutes"
+                type="number"
+                min="1"
+                step="1"
+                value={formData.durationMinutes}
+                onChange={handleChange}
+                placeholder="e.g. 90"
+                className="bg-background rounded-2xl h-11"
+              />
+            </div>
+
 
           {/* Status */}
           <div className="flex items-center gap-2">
@@ -369,21 +382,16 @@ export default function EditRoute({ route, open, onClose, onSuccess }) {
             <div className="space-y-4">
               {formData.boardingPoints.map((point, index) => (
                 <div key={index} className="flex items-start gap-4">
-                  <div className="flex-1 space-y-2">
-                    <Label>Location Name</Label>
-                    <Input
-                      value={point.locationName}
-                      onChange={(e) =>
-                        updateBoardingPoint(
-                          index,
-                          "locationName",
-                          e.target.value
-                        )
-                      }
-                      placeholder="Location name"
-                      className="bg-background"
-                    />
-                  </div>
+                  <IslandSingleSelect
+                    label="Location"
+                    placeholder="Select location"
+                    value={point.locationName}
+                    onChange={(v) =>
+                      updateBoardingPoint(index, "locationName", v)
+                    }
+                    disabled={loading}
+                    className="flex-1"
+                  />
                   <div className="flex-1 space-y-2">
                     <Label>Arrival Time</Label>
                     <Input
@@ -432,21 +440,16 @@ export default function EditRoute({ route, open, onClose, onSuccess }) {
             <div className="space-y-4">
               {formData.droppingPoints.map((point, index) => (
                 <div key={index} className="flex items-start gap-4">
-                  <div className="flex-1 space-y-2">
-                    <Label>Location Name</Label>
-                    <Input
-                      value={point.locationName}
-                      onChange={(e) =>
-                        updateDroppingPoint(
-                          index,
-                          "locationName",
-                          e.target.value
-                        )
-                      }
-                      placeholder="Location name"
-                      className="bg-background"
-                    />
-                  </div>
+                  <IslandSingleSelect
+                    label="Location"
+                    placeholder="Select location"
+                    value={point.locationName}
+                    onChange={(v) =>
+                      updateDroppingPoint(index, "locationName", v)
+                    }
+                    disabled={loading}
+                    className="flex-1"
+                  />
                   <div className="flex-1 space-y-2">
                     <Label>Arrival Time</Label>
                     <Input

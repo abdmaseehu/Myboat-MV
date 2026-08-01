@@ -100,6 +100,19 @@ export default function AllCharterRequestsPage() {
     return items.filter((r) => r.vendor?.id === operator);
   }, [items, operator]);
 
+  // MVR and USD are tallied strictly independently — never combined.
+  const totals = useMemo(() => {
+    const acc = { MVR: { count: 0, sum: 0 }, USD: { count: 0, sum: 0 } };
+    filtered.forEach((r) => {
+      if (!r.quotedPrice) return;
+      const cur = (r.quotedCurrency || "MVR").toUpperCase();
+      if (!acc[cur]) return;
+      acc[cur].count += 1;
+      acc[cur].sum += Number(r.quotedPrice) || 0;
+    });
+    return acc;
+  }, [filtered]);
+
   return (
     <div className="flex-1 space-y-6 p-4 md:p-8 pt-6">
       <div>
@@ -167,6 +180,30 @@ export default function AllCharterRequestsPage() {
         </CardContent>
       </Card>
 
+      {/* Quoted value — MVR and USD reported separately, never summed */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Card className="border-emerald-500/30">
+          <CardContent className="p-4">
+            <div className="text-xs text-muted-foreground">
+              Quoted in MVR ({totals.MVR.count})
+            </div>
+            <div className="text-xl font-bold text-emerald-600">
+              {formatMoney(totals.MVR.sum, "MVR")}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-sky-500/30">
+          <CardContent className="p-4">
+            <div className="text-xs text-muted-foreground">
+              Quoted in USD ({totals.USD.count})
+            </div>
+            <div className="text-xl font-bold text-sky-600">
+              {formatMoney(totals.USD.sum, "USD")}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardContent className="p-0">
           {loading ? (
@@ -188,6 +225,7 @@ export default function AllCharterRequestsPage() {
                   <TableHead>Pax</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Quoted</TableHead>
+                  <TableHead className="text-right">Quoted On</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -232,6 +270,11 @@ export default function AllCharterRequestsPage() {
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
+                    </TableCell>
+                    <TableCell className="text-right text-xs text-muted-foreground">
+                      {r.quotedAt
+                        ? new Date(r.quotedAt).toLocaleDateString()
+                        : "—"}
                     </TableCell>
                   </TableRow>
                 ))}

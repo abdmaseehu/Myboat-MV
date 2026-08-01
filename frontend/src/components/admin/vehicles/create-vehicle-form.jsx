@@ -50,12 +50,12 @@ import {
   Image as ImageIcon,
   ArrowLeft,
   ChevronDown,
+  X,
   FileText,
 } from "lucide-react";
 import api from "@/lib/axios";
 import SelectAmenitiesDialog from "./select-amenities-dialog";
 import { Badge } from "@/components/ui/badge";
-import { X } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { BreadcrumbNav } from "@/components/ui/breadcrumb";
@@ -92,6 +92,8 @@ const vehicleSchema = z.object({
   cancellationPolicy: z.string().optional(),
 });
 
+const MAX_IMAGES = 5;
+
 export default function CreateVehicleForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -102,6 +104,44 @@ export default function CreateVehicleForm() {
   const [amenitiesDialogOpen, setAmenitiesDialogOpen] = useState(false);
   const [selectedAmenities, setSelectedAmenities] = useState([]);
   const [specOpen, setSpecOpen] = useState(false);
+  const [imageFiles, setImageFiles] = useState([]);
+  const [imagePreviews, setImagePreviews] = useState([]);
+
+  // Object URLs must be revoked or they leak for the page's lifetime.
+  useEffect(() => {
+    return () => imagePreviews.forEach((url) => URL.revokeObjectURL(url));
+  }, [imagePreviews]);
+
+  const handleImagesSelected = (e) => {
+    const picked = Array.from(e.target.files || []);
+    e.target.value = ""; // allow re-picking the same file after a remove
+    if (!picked.length) return;
+
+    const room = MAX_IMAGES - imageFiles.length;
+    if (room <= 0) {
+      toast.error(`You can upload up to ${MAX_IMAGES} photos`);
+      return;
+    }
+    if (picked.length > room) {
+      toast.info(`Only ${room} more photo${room === 1 ? "" : "s"} added`);
+    }
+
+    const accepted = picked.slice(0, room);
+    setImageFiles((prev) => [...prev, ...accepted]);
+    setImagePreviews((prev) => [
+      ...prev,
+      ...accepted.map((f) => URL.createObjectURL(f)),
+    ]);
+  };
+
+  const removeImage = (index) => {
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => {
+      const url = prev[index];
+      if (url) URL.revokeObjectURL(url);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
 
   const form = useForm({
     resolver: zodResolver(vehicleSchema),
@@ -185,6 +225,7 @@ export default function CreateVehicleForm() {
       // Fields to exclude from direct FormData iteration
       const skipKeys = new Set([
         "amenities",
+        "vehicleImage",
         "specLength",
         "specEnginePower",
         "specTopSpeed",
@@ -194,9 +235,7 @@ export default function CreateVehicleForm() {
 
       Object.keys(data).forEach((key) => {
         if (skipKeys.has(key)) return;
-        if (key === "vehicleImage" && data[key]) {
-          formData.append(key, data[key][0]);
-        } else if (data[key] !== undefined && data[key] !== null && data[key] !== "") {
+        if (data[key] !== undefined && data[key] !== null && data[key] !== "") {
           formData.append(key, data[key]);
         }
       });
@@ -213,6 +252,9 @@ export default function CreateVehicleForm() {
 
       // Append specification as JSON string
       formData.append("specification", JSON.stringify(specification));
+
+      // Gallery photos (backend accepts up to 5 on the `vesselImages` field)
+      imageFiles.forEach((file) => formData.append("vesselImages", file));
 
       await api.post("/vehicles", formData, {
         headers: {
@@ -509,28 +551,62 @@ export default function CreateVehicleForm() {
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="vehicleImage"
-                  render={({ field: { value, onChange, ...field } }) => (
-                    <FormItem>
-                      <FormLabel>Vessel Image</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => onChange(e.target.files)}
-                            {...field}
-                            className="bg-white/50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 focus-visible:ring-sky-500 file:bg-sky-500 file:text-white file:border-0 file:mr-2"
-                          />
-                          <ImageIcon className="absolute right-3 top-2.5 h-5 w-5 text-muted-foreground pointer-events-none" />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <FormItem className="md:col-span-2">
+                  <FormLabel>
+                    Vessel Photos
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                      up to {MAX_IMAGES} — the first is used as the cover
+                    </span>
+                  </FormLabel>
+                  <FormControl>
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap gap-3">
+                        {imagePreviews.map((src, i) => (
+                          <div
+                            key={src}
+                            className="relative h-24 w-32 rounded-xl overflow-hidden border border-border group"
+                          >
+                            <img
+                              src={src}
+                              alt={`Vessel photo ${i + 1}`}
+                              className="h-full w-full object-cover"
+                            />
+                            {i === 0 && (
+                              <span className="absolute top-1 left-1 rounded-full bg-lagoon px-2 py-0.5 text-[10px] font-medium text-white">
+                                Cover
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => removeImage(i)}
+                              aria-label={`Remove photo ${i + 1}`}
+                              className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+
+                        {imageFiles.length < MAX_IMAGES && (
+                          <label className="h-24 w-32 rounded-xl border-2 border-dashed border-border hover:border-lagoon cursor-pointer flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-lagoon transition-colors">
+                            <ImageIcon className="h-5 w-5" />
+                            <span className="text-xs">Add photo</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              className="sr-only"
+                              onChange={handleImagesSelected}
+                            />
+                          </label>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {imageFiles.length}/{MAX_IMAGES} selected. JPG or PNG.
+                      </p>
+                    </div>
+                  </FormControl>
+                </FormItem>
               </div>
             </div>
 

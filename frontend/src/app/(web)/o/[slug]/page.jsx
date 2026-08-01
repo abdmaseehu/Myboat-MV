@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   Ship,
   Anchor,
+  Truck,
   MapPin,
   Mail,
   Phone,
@@ -94,6 +95,25 @@ export default async function OperatorPublicPage({ params }) {
           {vendor.description && (
             <p className="mt-4 text-muted-foreground">{vendor.description}</p>
           )}
+          <div className="mt-5 flex flex-wrap justify-center gap-3 md:justify-start">
+            <Button
+              asChild
+              className="rounded-full bg-coral px-6 text-white shadow-coral hover:bg-coral-soft"
+            >
+              <Link href={`/charter?operator=${encodeURIComponent(params.slug)}`}>
+                <Anchor className="mr-2 h-4 w-4" /> Request a Charter
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              className="rounded-full px-6"
+            >
+              <Link href={`/logistics?operator=${encodeURIComponent(params.slug)}`}>
+                <Truck className="mr-2 h-4 w-4" /> Request Cargo Transport
+              </Link>
+            </Button>
+          </div>
         </div>
       </section>
 
