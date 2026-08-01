@@ -28,6 +28,7 @@ import CancellationPolicyDialog from "./cancellation-policy-dialog";
 import BusInfo from "./bus-info";
 import SeatLayoutSheet from "./seat-layout-sheet";
 import useTicketStore from "@/store/use-ticket-store";
+import { priceForCategory, formatMoney } from "@/lib/currency";
 import SearchForm from "@/components/web/bus-tickets/search-form";
 import {
   Dialog,
@@ -80,12 +81,6 @@ const formatPointTime = (time) => {
   }
 };
 
-const formatCurrency = (amount, currency = "MVR") => {
-  if (amount == null || Number.isNaN(Number(amount))) return "—";
-  const symbol = currency === "USD" ? "$" : "MVR";
-  return `${symbol} ${Number(amount).toFixed(2)}`;
-};
-
 const CATEGORY_OPTIONS = [
   {
     value: "LOCAL",
@@ -109,25 +104,6 @@ const CATEGORY_OPTIONS = [
     ring: "ring-orange-500",
   },
 ];
-
-const priceForCategory = (vehicle, category) => {
-  const schedule = vehicle?.schedules?.[0] || {};
-  // Local / Expat: MVR. Fall back to layout price (also MVR) if operator hasn't
-  // set the tier price yet.
-  if (category === "LOCAL") {
-    const amount = schedule.priceLocalMvr ?? vehicle?.layout?.seaterPrice;
-    return { amount, currency: "MVR" };
-  }
-  if (category === "EXPAT") {
-    const amount = schedule.priceExpatMvr ?? vehicle?.layout?.seaterPrice;
-    return { amount, currency: "MVR" };
-  }
-  // Tourist: USD only. Do NOT fall back to the MVR layout price — that would
-  // mislabel the currency. If operator hasn't set priceTouristUsd, show "—".
-  if (category === "TOURIST")
-    return { amount: schedule.priceTouristUsd, currency: "USD" };
-  return { amount: vehicle?.layout?.seaterPrice, currency: "MVR" };
-};
 
 export default function TicketList({ routeId, date }) {
   const {
@@ -199,15 +175,15 @@ export default function TicketList({ routeId, date }) {
     return () => reset();
   }, [routeId, date, reset, fetchVehicles]);
 
+  // Sorting compares like with like: every vehicle is priced in the same
+  // currency here (it's driven by the one selected passenger category).
+  // Vessels with no fare published for that tier always sort last.
   const sortedVehicles = [...vehicles].sort((a, b) => {
-    const priceA =
-      priceForCategory(a, passengerCategory).amount ??
-      a.layout?.seaterPrice ??
-      0;
-    const priceB =
-      priceForCategory(b, passengerCategory).amount ??
-      b.layout?.seaterPrice ??
-      0;
+    const priceA = priceForCategory(a, passengerCategory).amount;
+    const priceB = priceForCategory(b, passengerCategory).amount;
+    if (priceA == null && priceB == null) return 0;
+    if (priceA == null) return 1;
+    if (priceB == null) return -1;
     return sortOrder === "LOW_TO_HIGH" ? priceA - priceB : priceB - priceA;
   });
 
@@ -323,8 +299,8 @@ export default function TicketList({ routeId, date }) {
                   className="w-full [&>[role=slider]]:bg-sky-500 [&>[role=slider]]:border-sky-600"
                 />
                 <div className="flex justify-between text-sm text-sky-600/80 dark:text-sky-500/80">
-                  <span>{formatCurrency(priceRange[0])}</span>
-                  <span>{formatCurrency(priceRange[1])}</span>
+                  <span>{formatMoney(priceRange[0])}</span>
+                  <span>{formatMoney(priceRange[1])}</span>
                 </div>
               </div>
 
@@ -573,20 +549,16 @@ export default function TicketList({ routeId, date }) {
                                     </span>
                                     <p className="text-2xl font-bold text-sky-800 dark:text-sky-300">
                                       {amount != null
-                                        ? formatCurrency(amount, cur)
-                                        : cur === "USD"
-                                          ? "USD —"
-                                          : formatCurrency(
-                                              vehicle.layout?.seaterPrice,
-                                              "MVR"
-                                            )}
+                                        ? formatMoney(amount, cur)
+                                        : `${cur} —`}
                                     </p>
-                                  {amount == null && cur === "USD" && (
-                                    <span className="text-xs text-muted-foreground italic mt-1">
-                                      Tourist USD rate not set — contact operator
+                                  </div>
+                                  {amount == null && (
+                                    <span className="block text-xs text-muted-foreground italic mt-1">
+                                      No {label.toLowerCase()} fare set — contact
+                                      operator
                                     </span>
                                   )}
-                                  </div>
                                 </motion.div>
                               );
                             })()}

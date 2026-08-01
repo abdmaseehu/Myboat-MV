@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import useTicketStore from "@/store/use-ticket-store";
+import { formatMoney } from "@/lib/currency";
 import { useAuth } from "@/store/use-auth";
 import { cn } from "@/lib/utils";
 
@@ -24,14 +25,6 @@ const sidebarVariants = {
   },
 };
 
-// Format currency
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(amount);
-};
-
 export default function BoardingPointSelection({ isOpen, onClose, vehicle }) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -43,7 +36,11 @@ export default function BoardingPointSelection({ isOpen, onClose, vehicle }) {
     setSelectedBoardingPoint,
     selectedSeats,
     setBookingDate,
+    currency,
   } = useTicketStore();
+
+  // Currency follows the passenger category (LOCAL/EXPAT -> MVR, TOURIST -> USD).
+  const fmt = (v) => formatMoney(v, currency);
 
   useEffect(() => {
     const date = searchParams.get("date");
@@ -237,7 +234,7 @@ export default function BoardingPointSelection({ isOpen, onClose, vehicle }) {
                               {seat.type}
                             </span>
                             <span className="text-xs font-medium text-sky-500">
-                              {formatCurrency(seat.price)}
+                              {fmt(seat.price)}
                             </span>
                           </div>
                         </div>
@@ -254,7 +251,7 @@ export default function BoardingPointSelection({ isOpen, onClose, vehicle }) {
                       </span>
                     </div>
                     <span className="text-lg font-bold text-sky-500">
-                      {formatCurrency(
+                      {fmt(
                         selectedSeats.reduce(
                           (total, seat) => total + seat.price,
                           0

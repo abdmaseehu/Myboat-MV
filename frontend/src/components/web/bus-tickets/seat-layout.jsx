@@ -16,6 +16,9 @@ export default function SeatLayout({
   vehicle,
   bookings = [],
   bookingDate,
+  // Preformatted fare for the current passenger category, e.g. "$10.00".
+  // Passed down so the tooltip can never guess the wrong currency.
+  fareLabel,
 }) {
   const rows = layout?.rows || [];
   const seats = layout?.seats || {};
@@ -139,9 +142,9 @@ export default function SeatLayout({
                     >
                       <div className="text-center">
                         <p className="font-bold">Seat {seatInfo.number}</p>
-                        <p className="text-xs font-medium">
-                          MVR {vehicle?.layout?.seaterPrice ?? "—"}
-                        </p>
+                        {fareLabel && (
+                          <p className="text-xs font-medium">{fareLabel}</p>
+                        )}
                         {status === "booked" && (
                           <p className="text-xs font-medium text-red-800">
                             Already Booked

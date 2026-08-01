@@ -14,17 +14,13 @@ import { Ship, Loader2, Users, Minus, Plus } from "lucide-react";
 import SeatLayout from "./seat-layout";
 import BoardingPointSelection from "./boarding-point-selection";
 import useTicketStore from "@/store/use-ticket-store";
+import { priceForCategory, formatMoney, categoryLabel } from "@/lib/currency";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 import api from "@/lib/axios";
 
-// Format currency in USD
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(amount);
-};
+// Prices come from the schedule's tier for the selected passenger category.
+// MVR and USD are independent - nothing here converts between them.
 
 // Animation variants
 const containerVariants = {
@@ -74,10 +70,22 @@ export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
     setTotalAmount,
     bookingDate,
     setBookingDate,
+    passengerCategory,
   } = useTicketStore();
 
   // Per-vessel setting: operator can disable seat selection entirely
   const seatSelectionEnabled = vehicle?.seatSelectionEnabled !== false;
+
+  // One seat's fare for THIS passenger category, in that category's currency.
+  const { amount: unitPrice, currency } = priceForCategory(
+    vehicle,
+    passengerCategory
+  );
+  const fareLabel = categoryLabel(passengerCategory);
+  const fmt = (v) => formatMoney(v, currency);
+  // Operator hasn't published a fare for this tier - booking must not proceed
+  // at a silent 0.00.
+  const priceUnavailable = unitPrice === null || Number.isNaN(Number(unitPrice));
   const capacity = vehicle?.totalSeats || vehicle?.layout?.totalSeats || 10;
 
   // Fetch bookings when component mounts or when vehicle/date changes
@@ -110,6 +118,12 @@ export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
 
   const handleSeatSelect = (seatKey) => {
     if (!seatKey) return;
+    if (priceUnavailable) {
+      toast.error(
+        `This operator has not set a ${fareLabel} fare for this trip yet`
+      );
+      return;
+    }
 
     setSelectedSeats((prevSeats) => {
       const isSelected = prevSeats.some((seat) => seat.key === seatKey);
@@ -128,12 +142,10 @@ export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
         const seatInfo = vehicle.layout.layoutJson.seats[seatKey];
         if (!seatInfo) return prevSeats;
 
-        const price =
-          seatInfo.type === "SLEEPER"
-            ? Number(vehicle.layout.sleeperPrice)
-            : Number(vehicle.layout.seaterPrice);
-
-        newSeats = [...prevSeats, { key: seatKey, type: seatInfo.type, price }];
+        newSeats = [
+          ...prevSeats,
+          { key: seatKey, type: seatInfo.type, price: Number(unitPrice) || 0 },
+        ];
       }
 
       // Calculate total amount
@@ -144,29 +156,21 @@ export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
     });
   };
 
-  const calculateTotalPrice = (seats = []) => {
-    if (!Array.isArray(seats)) return 0;
-
-    let total = 0;
-    seats.forEach((seat) => {
-      const seatInfo = vehicle?.layout?.layoutJson?.seats?.[seat.key];
-      if (seatInfo) {
-        if (seatInfo.type === "SLEEPER") {
-          total += Number(vehicle?.layout?.sleeperPrice) || 0;
-        } else {
-          total += Number(vehicle?.layout?.seaterPrice) || 0;
-        }
-      }
-    });
-    return total;
-  };
+  const calculateTotalPrice = (seats = []) =>
+    Array.isArray(seats) ? seats.length * (Number(unitPrice) || 0) : 0;
 
   const handleContinue = () => {
+    if (priceUnavailable) {
+      toast.error(
+        `This operator has not set a ${fareLabel} fare for this trip yet`
+      );
+      return;
+    }
     if (seatSelectionEnabled) {
       if (!Array.isArray(selectedSeats) || selectedSeats.length === 0) return;
     } else {
       // Seat selection disabled: synthesize virtual "seats" from passenger count
-      const price = Number(vehicle?.layout?.seaterPrice) || 0;
+      const price = Number(unitPrice) || 0;
       const virtualSeats = Array.from({ length: passengerCount }, (_, i) => ({
         key: `virtual-${i + 1}`,
         type: "SEAT",
@@ -207,11 +211,6 @@ export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
           const seatInfo = vehicle?.layout?.layoutJson?.seats?.[seat.key];
           if (!seatInfo) return null;
 
-          const price =
-            seatInfo.type === "SLEEPER"
-              ? vehicle?.layout?.sleeperPrice
-              : vehicle?.layout?.seaterPrice;
-
           return (
             <motion.div
               key={seat.key}
@@ -222,10 +221,10 @@ export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
                 className="bg-sky-500 text-black hover:bg-sky-600 cursor-pointer transition-colors duration-200"
                 onClick={() => handleSeatSelect(seat.key)}
               >
-                Seat {seatInfo.number} ({seatInfo.type})
+                Seat {seatInfo.number}
               </Badge>
               <span className="font-medium text-sky-700 dark:text-sky-400">
-                {formatCurrency(price)}
+                {fmt(unitPrice)}
               </span>
             </motion.div>
           );
@@ -235,10 +234,13 @@ export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
           className="pt-3 mt-3 border-t border-sky-200 dark:border-sky-800 flex justify-between items-center"
         >
           <span className="font-medium text-sky-700 dark:text-sky-400">
-            Total Amount:
+            Total Amount
+            <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+              ({fareLabel} rate)
+            </span>
           </span>
           <span className="text-lg font-bold bg-gradient-to-r from-sky-500 to-sky-600 bg-clip-text text-transparent">
-            {formatCurrency(calculateTotalPrice(selectedSeats))}
+            {fmt(calculateTotalPrice(selectedSeats))}
           </span>
         </motion.div>
       </motion.div>
@@ -272,6 +274,14 @@ export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
               </SheetDescription>
             </SheetHeader>
 
+            {priceUnavailable && (
+              <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-3 text-sm text-amber-800 dark:text-amber-300">
+                This operator hasn&apos;t published a{" "}
+                <strong>{fareLabel}</strong> fare for this trip yet. Please pick
+                another vessel or contact the operator.
+              </div>
+            )}
+
             <div className="flex-1 py-6">
               {loading ? (
                 <motion.div
@@ -302,6 +312,7 @@ export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
                   vehicle={vehicle}
                   bookings={bookings}
                   bookingDate={bookingDate}
+                  fareLabel={priceUnavailable ? null : fmt(unitPrice)}
                 />
               ) : (
                 // Operator disabled seat selection: simple passenger counter
@@ -373,9 +384,10 @@ export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
                 <Button
                   onClick={handleContinue}
                   disabled={
-                    seatSelectionEnabled
+                    priceUnavailable ||
+                    (seatSelectionEnabled
                       ? !Array.isArray(selectedSeats) || selectedSeats.length === 0
-                      : passengerCount < 1
+                      : passengerCount < 1)
                   }
                   className="w-full bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white font-medium shadow-lg transition-all duration-300"
                 >

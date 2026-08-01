@@ -22,6 +22,11 @@ import {
 } from "@/components/ui/select";
 import api from "@/lib/axios";
 import { useAuth } from "@/store/use-auth";
+import {
+  priceForCategory as sharedPriceForCategory,
+  getCurrencyForCategory,
+  formatMoney as sharedFormatMoney,
+} from "@/lib/currency";
 
 const CATEGORY_OPTIONS = [
   { value: "LOCAL", label: "Local", currency: "MVR" },
@@ -29,17 +34,15 @@ const CATEGORY_OPTIONS = [
   { value: "TOURIST", label: "Tourist", currency: "USD" },
 ];
 
-const priceForCategory = (schedule, category) => {
-  if (!schedule) return 0;
-  if (category === "TOURIST") return Number(schedule.priceTouristUsd || 0);
-  if (category === "EXPAT") return Number(schedule.priceExpatMvr || 0);
-  return Number(schedule.priceLocalMvr || 0);
-};
+// Pricing comes from the shared helper so operator-side and customer-side
+// always agree. Returns null (not 0) when that tier has no published fare.
+const priceForCategory = (schedule, category) =>
+  sharedPriceForCategory(schedule, category).amount;
 
-const currencyFor = (category) => (category === "TOURIST" ? "USD" : "MVR");
+const currencyFor = getCurrencyForCategory;
 
-const formatMoney = (currency, amount) =>
-  `${currency === "USD" ? "$" : "MVR"} ${Number(amount || 0).toFixed(2)}`;
+// Local arg order is (currency, amount); the shared one is (amount, currency).
+const formatMoney = (currency, amount) => sharedFormatMoney(amount, currency);
 
 export default function CreateManualBooking({ open, onClose, onSuccess }) {
   const { user } = useAuth();
@@ -102,8 +105,11 @@ export default function CreateManualBooking({ open, onClose, onSuccess }) {
   );
 
   const unitPrice = priceForCategory(selectedSchedule, form.passengerCategory);
+  // null => the operator hasn't published a fare for this tier. Keep the maths
+  // safe, but block submission rather than booking at 0.
+  const fareMissing = selectedSchedule != null && unitPrice == null;
   const seats = Math.max(1, Number(form.seats) || 1);
-  const subtotal = unitPrice * seats;
+  const subtotal = (Number(unitPrice) || 0) * seats;
   const discountPct = selectedAgent ? Number(selectedAgent.discountPercent || 0) : 0;
   const commissionPct = selectedAgent
     ? Number(selectedAgent.commissionPercent || 0)
@@ -117,6 +123,12 @@ export default function CreateManualBooking({ open, onClose, onSuccess }) {
 
   const submit = async (e) => {
     e.preventDefault();
+    if (fareMissing) {
+      toast.error(
+        `No ${currency} fare is set on this schedule for the selected passenger category`
+      );
+      return;
+    }
     if (!form.customerName || !form.customerEmail || !form.customerPhone) {
       toast.error("Customer name, email and phone are required");
       return;
@@ -381,7 +393,7 @@ export default function CreateManualBooking({ open, onClose, onSuccess }) {
             </Button>
             <Button
               type="submit"
-              disabled={saving}
+              disabled={saving || fareMissing}
               className="bg-sky-500 hover:bg-sky-600 text-white"
             >
               {saving ? "Creating..." : "Create Booking"}
