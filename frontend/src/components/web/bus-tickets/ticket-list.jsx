@@ -186,12 +186,26 @@ export default function TicketList({ routeId, date }) {
     return () => reset();
   }, [routeId, date, reset, fetchVehicles]);
 
-  // Sorting compares like with like: every vehicle is priced in the same
-  // currency here (it's driven by the one selected passenger category).
-  // Vessels with no fare published for that tier always sort last.
-  const sortedVehicles = [...vehicles].sort((a, b) => {
-    const priceA = priceForCategory(a, passengerCategory).amount;
-    const priceB = priceForCategory(b, passengerCategory).amount;
+  // A vessel can run the same route several times a day at different times and
+  // fares, so each departure gets its own result row.
+  // A vessel with no schedule on this route has nothing to sell, so it is not
+  // a result. (It would otherwise render a card with no time and no fare.)
+  const departures = vehicles.flatMap((vehicle) =>
+    (vehicle.schedules || []).map((schedule) => ({
+      vehicle,
+      schedule,
+      // Downstream (seat picker, checkout) reads schedules[0]; narrowing the
+      // list to the chosen departure keeps that contract intact.
+      vehicleForBooking: { ...vehicle, schedules: [schedule] },
+    }))
+  );
+
+  // Sorting compares like with like: every row is priced in the same currency
+  // here (it's driven by the one selected passenger category). Departures with
+  // no fare published for that tier always sort last.
+  const sortedDepartures = [...departures].sort((a, b) => {
+    const priceA = priceForCategory(a.vehicleForBooking, passengerCategory).amount;
+    const priceB = priceForCategory(b.vehicleForBooking, passengerCategory).amount;
     if (priceA == null && priceB == null) return 0;
     if (priceA == null) return 1;
     if (priceB == null) return -1;
@@ -235,7 +249,8 @@ export default function TicketList({ routeId, date }) {
     setFilters({ ...filters, isAC: checked });
   };
 
-  const handleBookNow = (vehicle) => {
+  const handleBookNow = (vehicleForBooking) => {
+    const vehicle = vehicleForBooking;
     resetTicketSelection(); // Reset previous selection
     setSelectedVehicleState(vehicle);
     setShowSeatLayout(true);
@@ -260,7 +275,7 @@ export default function TicketList({ routeId, date }) {
             variant="outline"
             className="bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-800 px-4 py-1.5 text-sm font-medium"
           >
-            {vehicles.length} Boats Found
+            {sortedDepartures.length} Departures Found
           </Badge>
           <Button
             variant="outline"
@@ -391,9 +406,9 @@ export default function TicketList({ routeId, date }) {
               </div>
             </motion.div>
           ) : (
-            sortedVehicles.map((vehicle, index) => {
+            sortedDepartures.map((departure, index) => {
+              const { vehicle, schedule, vehicleForBooking } = departure;
               const amenities = parseAmenities(vehicle.amenities);
-              const schedule = vehicle.schedules[0];
               const departureTime = schedule
                 ? new Date(schedule.departureTime)
                 : null;
@@ -403,9 +418,9 @@ export default function TicketList({ routeId, date }) {
 
               return (
                 <motion.div
-                  key={vehicle.id}
+                  key={schedule ? `${vehicle.id}-${schedule.id}` : vehicle.id}
                   ref={
-                    index === vehicles.length - 1 ? lastVehicleElementRef : null
+                    index === sortedDepartures.length - 1 ? lastVehicleElementRef : null
                   }
                   variants={itemVariants}
                   initial="hidden"
@@ -492,8 +507,9 @@ export default function TicketList({ routeId, date }) {
                                     variant="outline"
                                     className="bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-800 whitespace-nowrap"
                                   >
-                                    {formatScheduleTime(departureTime)} -{" "}
-                                    {formatScheduleTime(arrivalTime)}
+                                    Departs {formatScheduleTime(departureTime)}
+                                    {" · "}
+                                    {formatScheduleTime(arrivalTime)} arrival
                                   </Badge>
                                 </div>
                               </motion.div>
@@ -568,7 +584,7 @@ export default function TicketList({ routeId, date }) {
                               className="w-full"
                             >
                               <Button
-                                onClick={() => handleBookNow(vehicle)}
+                                onClick={() => handleBookNow(vehicleForBooking)}
                                 className="w-full bg-sky-500 hover:bg-sky-600 dark:bg-sky-600 dark:hover:bg-sky-700 text-black dark:text-white font-medium px-6 py-3 rounded-xl text-lg shadow-lg transition-all duration-300"
                               >
                                 Book Now
