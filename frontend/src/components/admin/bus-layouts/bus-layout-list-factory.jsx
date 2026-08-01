@@ -9,6 +9,10 @@ import createDynamicList from "@/components/common/create-dynamic-list";
 import dynamic from "next/dynamic";
 
 // Dynamically import delete component with SSR disabled
+const EditBusLayout = dynamic(() => import("./edit-bus-layout"), {
+  ssr: false,
+});
+
 const DeleteBusLayout = dynamic(() => import("./delete-bus-layout"), {
   ssr: false,
 });
@@ -109,6 +113,20 @@ const DeleteBusLayoutWrapper = ({ item, ...props }) => {
 };
 
 // Create the dynamic seat layout list component
+// EditBusLayout expects `layout` + `onOpenChange(bool)`; the list hands modals
+// `item` + `onClose()`.
+const EditBusLayoutWrapper = ({ item, onClose, ...props }) => {
+  return (
+    <EditBusLayout
+      layout={item}
+      onOpenChange={(next) => {
+        if (!next) onClose?.();
+      }}
+      {...props}
+    />
+  );
+};
+
 const BusLayoutListFactory = createDynamicList({
   title: "Seat Layouts",
   apiEndpoint: "/bus-layouts",
@@ -132,11 +150,12 @@ const BusLayoutListFactory = createDynamicList({
   //     </Button>
   //   ),
   // },
+  EditModal: EditBusLayoutWrapper,
   DeleteModal: DeleteBusLayoutWrapper,
   // detailsPath: "/admin/bus-layouts/:id",
   searchPlaceholder: "Search layouts...",
   // deleteEndpoint: "/bus-layouts/:id",
-  EditMode: false,
+  EditMode: true,
 });
 
 export default BusLayoutListFactory;

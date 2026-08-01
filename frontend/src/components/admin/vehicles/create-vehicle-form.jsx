@@ -66,7 +66,7 @@ const vehicleSchema = z.object({
     .string()
     .min(2, "Vessel number must be at least 2 characters"),
   vehicleType: z.enum(["AC", "NON_AC"]),
-  vehicleStatus: z.enum(["AVAILABLE", "MAINTENANCE", "OUT_OF_SERVICE"]),
+  vehicleStatus: z.enum(["AVAILABLE", "BOOKED", "MAINTENANCE", "INACTIVE"]),
   totalSeats: z.string().transform((val) => Number(val)),
   startDate: z.string().optional(),
   driverName: z.string().optional(),
@@ -387,7 +387,7 @@ export default function CreateVehicleForm() {
                       >
                         <FormControl>
                           <SelectTrigger className="bg-white/50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 focus-visible:ring-sky-500">
-                            <SelectValue placeholder="Select vehicle status" />
+                            <SelectValue placeholder="Select vessel status" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -401,6 +401,16 @@ export default function CreateVehicleForm() {
                               </Badge>
                             </div>
                           </SelectItem>
+                          <SelectItem value="BOOKED">
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                className="border-amber-500 text-amber-500"
+                              >
+                                Booked
+                              </Badge>
+                            </div>
+                          </SelectItem>
                           <SelectItem value="MAINTENANCE">
                             <div className="flex items-center gap-2">
                               <Badge
@@ -411,13 +421,13 @@ export default function CreateVehicleForm() {
                               </Badge>
                             </div>
                           </SelectItem>
-                          <SelectItem value="OUT_OF_SERVICE">
+                          <SelectItem value="INACTIVE">
                             <div className="flex items-center gap-2">
                               <Badge
                                 variant="outline"
                                 className="border-red-500 text-red-500"
                               >
-                                Out of Service
+                                Inactive
                               </Badge>
                             </div>
                           </SelectItem>

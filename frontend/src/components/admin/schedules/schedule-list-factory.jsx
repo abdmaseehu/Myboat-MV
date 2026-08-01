@@ -230,7 +230,7 @@ const ScheduleListFactory = createDynamicList({
   //       "text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer",
   //   },
   // ],
-  EditMode: false,
+  EditMode: true,
   searchPlaceholder: "Search schedules...",
   deleteEndpoint: "/schedules/:id",
 });

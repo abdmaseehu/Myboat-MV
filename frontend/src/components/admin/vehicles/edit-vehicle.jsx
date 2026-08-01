@@ -38,7 +38,7 @@ const vehicleSchema = z.object({
   vehicleName: z.string().min(1, "Vessel name is required"),
   vehicleNumber: z.string().min(1, "Vessel number is required"),
   vehicleType: z.enum(["AC", "NON_AC"]),
-  vehicleStatus: z.enum(["AVAILABLE", "MAINTENANCE", "OUT_OF_SERVICE"]),
+  vehicleStatus: z.enum(["AVAILABLE", "BOOKED", "MAINTENANCE", "INACTIVE"]),
   vehicleRating: z.string().transform(Number),
   layoutId: z.string().min(1, "Layout is required"),
   routeId: z.string().min(1, "Route is required"),
@@ -271,10 +271,9 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="AVAILABLE">Available</SelectItem>
+                      <SelectItem value="BOOKED">Booked</SelectItem>
                       <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
-                      <SelectItem value="OUT_OF_SERVICE">
-                        Out of Service
-                      </SelectItem>
+                      <SelectItem value="INACTIVE">Inactive</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -318,7 +317,7 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Seat Layout</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value ?? ""}>
                     <FormControl>
                       <SelectTrigger className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-sky-500">
                         <SelectValue placeholder="Select seat layout" />
@@ -326,7 +325,7 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
                     </FormControl>
                     <SelectContent>
                       {loadingDropdowns ? (
-                        <SelectItem value="" disabled>
+                        <SelectItem value="__loading" disabled>
                           Loading layouts...
                         </SelectItem>
                       ) : (
@@ -350,7 +349,7 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Route</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value ?? ""}>
                     <FormControl>
                       <SelectTrigger className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-sky-500">
                         <SelectValue placeholder="Select route" />
@@ -358,7 +357,7 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
                     </FormControl>
                     <SelectContent>
                       {loadingDropdowns ? (
-                        <SelectItem value="" disabled>
+                        <SelectItem value="__loading" disabled>
                           Loading routes...
                         </SelectItem>
                       ) : (
