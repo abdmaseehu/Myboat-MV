@@ -244,7 +244,7 @@ export default function BookingsPage() {
                       </p>
                       <div className="grid grid-cols-2 gap-2">
                         {booking?.seatNumbers
-                          ?.filter((seat) => seat !== null)
+                          ?.filter((seat) => seat && seat.key !== "_meta")
                           .map((seat, index) => (
                             <div
                               key={`${booking.id}-seat-${index}`}

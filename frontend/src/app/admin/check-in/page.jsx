@@ -175,14 +175,20 @@ export default function CheckInPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div
-              id={containerId}
-              className="rounded-lg border overflow-hidden min-h-[260px] bg-muted/30 flex items-center justify-center"
-            >
+            {/*
+              html5-qrcode writes its own DOM into #qr-scanner-video. React must
+              never render children into that same node, or removing them later
+              throws NotFoundError (removeChild) and takes the whole page down.
+              The placeholder is therefore a sibling, not a child.
+            */}
+            <div className="relative rounded-lg border overflow-hidden min-h-[260px] bg-muted/30">
+              <div id={containerId} className="w-full" />
               {!scanning && (
-                <div className="text-sm text-muted-foreground py-6 text-center px-4">
-                  Press <b>Start Scanner</b> to activate the camera and scan a
-                  ticket QR code.
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <p className="text-sm text-muted-foreground text-center px-4">
+                    Press <b>Start Scanner</b> to activate the camera and scan a
+                    ticket QR code.
+                  </p>
                 </div>
               )}
             </div>

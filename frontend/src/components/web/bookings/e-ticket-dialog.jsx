@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +13,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { QrCode, Printer, Download, Ship, MapPin, Calendar } from "lucide-react";
+import {
+  QrCode,
+  FileDown,
+  Download,
+  Loader2,
+  Ship,
+  MapPin,
+  Calendar,
+} from "lucide-react";
 import { formatMoney } from "@/lib/currency";
 
 /** Short, human-quotable reference. The full id still lives in the QR. */
@@ -33,41 +42,136 @@ const fmtDate = (d) => {
   }
 };
 
-const seatLabel = (seat, index) =>
-  seat?.seatNumber ||
-  seat?.key?.split("-").slice(-2).join("-") ||
-  `Seat ${index + 1}`;
+/**
+ * Seat keys are internal ("virtual-1", "lower-0-2"), so never show them raw.
+ * Prefer a real seat number, else the trailing number of the key, else the
+ * passenger's position in the booking.
+ */
+const seatLabel = (seat, index) => {
+  if (seat?.seatNumber) return String(seat.seatNumber);
+  const trailing = String(seat?.key ?? "").match(/(\d+)$/);
+  return trailing ? trailing[1] : String(index + 1);
+};
 
 export default function ETicketDialog({ booking, trigger }) {
   const printRef = useRef(null);
+  const [busy, setBusy] = useState(false);
 
   // The check-in scanner looks the booking up by id, so that is all the code
   // needs to carry - keeping it short also keeps the QR easy to scan.
   const qrValue = booking?.id ?? "";
   const currency = booking?.currency || "MVR";
-  const seats = (booking?.seatNumbers || []).filter(Boolean);
+  // The API appends a "_meta" entry to seatNumbers; it is not a seat.
+  const seats = (booking?.seatNumbers || []).filter(
+    (s) => s && s.key !== "_meta"
+  );
   const passengers = booking?.passengers || [];
 
-  const handlePrint = () => {
-    const node = printRef.current;
-    if (!node) return;
-    const w = window.open("", "_blank", "width=800,height=1000");
-    if (!w) return;
-    w.document.write(`<!doctype html><html><head><title>Myboat MV e-ticket ${bookingRef(
-      booking?.id
-    )}</title>
-      <style>
-        body{font-family:ui-sans-serif,system-ui,sans-serif;padding:32px;color:#0f172a}
-        h1{font-size:20px;margin:0 0 4px}
-        .muted{color:#64748b;font-size:12px}
-        .row{display:flex;justify-content:space-between;gap:16px;margin:6px 0;font-size:14px}
-        .box{border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-top:16px}
-        canvas{display:block;margin:16px auto}
-      </style></head><body>${node.innerHTML}</body></html>`);
-    w.document.close();
-    w.focus();
-    // Give the cloned canvas a tick to paint before the print dialog opens.
-    setTimeout(() => w.print(), 250);
+  const handleDownloadPdf = async () => {
+    const canvas = printRef.current?.querySelector("canvas");
+    const ref = bookingRef(booking?.id);
+    try {
+      setBusy(true);
+      // Loaded on demand — jsPDF is heavy and most visits never download.
+      const { jsPDF } = await import("jspdf");
+      const doc = new jsPDF({ unit: "pt", format: "a4" });
+
+      const pageW = doc.internal.pageSize.getWidth();
+      const margin = 48;
+      let y = margin;
+
+      const line = (label, value, gap = 20) => {
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(String(label), margin, y);
+        doc.setFontSize(11);
+        doc.setTextColor(15);
+        doc.text(String(value ?? "—"), pageW - margin, y, { align: "right" });
+        y += gap;
+      };
+
+      doc.setFontSize(20);
+      doc.setTextColor(15);
+      doc.text("Myboat MV", margin, y);
+      y += 18;
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text("Maldives Ferry & Speedboat E-Ticket", margin, y);
+      y += 26;
+
+      doc.setDrawColor(226);
+      doc.line(margin, y, pageW - margin, y);
+      y += 26;
+
+      // QR, centred
+      if (canvas) {
+        const size = 170;
+        doc.addImage(
+          canvas.toDataURL("image/png"),
+          "PNG",
+          (pageW - size) / 2,
+          y,
+          size,
+          size
+        );
+        y += size + 16;
+      }
+      doc.setFontSize(9);
+      doc.setTextColor(100);
+      doc.text("Show this code at the jetty for boarding", pageW / 2, y, {
+        align: "center",
+      });
+      y += 12;
+      doc.setFontSize(13);
+      doc.setTextColor(15);
+      doc.text(`Booking reference: ${ref}`, pageW / 2, y + 14, {
+        align: "center",
+      });
+      y += 44;
+
+      doc.line(margin, y, pageW - margin, y);
+      y += 26;
+
+      line("Route", `${booking?.route?.sourceCity ?? "—"} to ${booking?.route?.destinationCity ?? "—"}`);
+      line("Travel date", fmtDate(booking?.bookingDate));
+      line("Vessel", booking?.vehicle?.vehicleName ?? "—");
+      if (booking?.boardingPoint?.locationName) {
+        line("Boarding point", booking.boardingPoint.locationName);
+      }
+      line("Seats", seats.length ? seats.map(seatLabel).join(", ") : "—");
+      line(
+        "Total paid",
+        formatMoney(booking?.finalAmount ?? booking?.totalAmount, currency)
+      );
+
+      if (passengers.length) {
+        y += 10;
+        doc.line(margin, y, pageW - margin, y);
+        y += 24;
+        doc.setFontSize(12);
+        doc.setTextColor(15);
+        doc.text("Passengers", margin, y);
+        y += 20;
+        passengers.forEach((p) => {
+          if (y > doc.internal.pageSize.getHeight() - margin) {
+            doc.addPage();
+            y = margin;
+          }
+          line(
+            p.fullName,
+            `${p.country ?? ""}${p.seatNumber ? ` • Seat ${p.seatNumber}` : ""}`,
+            18
+          );
+        });
+      }
+
+      doc.save(`myboat-eticket-${ref}.pdf`);
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      toast.error("Could not generate the PDF. Please try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleDownloadQr = () => {
@@ -195,9 +299,17 @@ export default function ETicketDialog({ booking, trigger }) {
         </ScrollArea>
 
         <div className="flex gap-2 px-6 pb-6 pt-2">
-          <Button onClick={handlePrint} className="flex-1 gap-2">
-            <Printer className="h-4 w-4" />
-            Print
+          <Button
+            onClick={handleDownloadPdf}
+            disabled={busy}
+            className="flex-1 gap-2"
+          >
+            {busy ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileDown className="h-4 w-4" />
+            )}
+            {busy ? "Preparing..." : "Download PDF"}
           </Button>
           <Button
             onClick={handleDownloadQr}
