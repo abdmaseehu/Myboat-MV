@@ -66,9 +66,17 @@ const createBookingAfterPayment = asyncHandler(async (req, res) => {
         droppingPointId: bookingData.droppingPointId,
         bookingDate: new Date(bookingData.bookingDate),
         seatNumbers: bookingData.seatNumbers,
+        passengers: bookingData.passengers ?? undefined,
+        contactEmail: bookingData.contactEmail || null,
+        contactPhone: bookingData.contactPhone || null,
         totalAmount: bookingData.totalAmount,
         discountAmount: bookingData.discountAmount || 0,
         finalAmount: bookingData.finalAmount,
+        // Card bookings were dropping these, which broke the MVR/USD split.
+        passengerCategory: bookingData.passengerCategory || undefined,
+        currency:
+          bookingData.currency?.toUpperCase() ||
+          (bookingData.passengerCategory === 'TOURIST' ? 'USD' : 'MVR'),
         paymentMethod: 'STRIPE',
         paymentStatus: 'PAID',
         status: 'CONFIRMED',

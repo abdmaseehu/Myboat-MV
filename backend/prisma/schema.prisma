@@ -356,6 +356,12 @@ model Booking {
     paymentStatus      String         @default("PENDING") @map("payment_status")
     paymentIntentId    String?        @map("payment_intent_id")
     seatNumbers        Json?          @map("seat_numbers")
+    // One entry per seat: { fullName, country, dateOfBirth, flightType,
+    // flightDate, flightNumber, flightTime, seatKey }. Name/country/DOB are
+    // required at checkout; the flight fields are optional.
+    passengers         Json?          @map("passengers")
+    contactEmail       String?        @map("contact_email")
+    contactPhone       String?        @map("contact_phone")
     passengerCategory  PassengerCategory? @map("passenger_category")
     currency           String?        @default("MVR") @db.VarChar(3)
     status             BookingStatus  @default(CONFIRMED)

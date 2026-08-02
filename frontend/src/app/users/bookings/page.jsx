@@ -23,6 +23,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { formatMoney } from "@/lib/currency";
+import ETicketDialog, {
+  bookingRef,
+} from "@/components/web/bookings/e-ticket-dialog";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import api from "@/lib/axios";
@@ -257,7 +261,10 @@ export default function BookingsPage() {
                                 • {seat?.type || "SEAT"}
                               </div>
                               <div className="text-sky-500 font-medium">
-                                ${seat?.price || 0}
+                                {formatMoney(
+                                  seat?.price || 0,
+                                  booking?.currency || "MVR"
+                                )}
                               </div>
                             </div>
                           ))}
@@ -274,13 +281,29 @@ export default function BookingsPage() {
                         <div className="flex justify-between items-center">
                           <span>Total Amount</span>
                           <span className="font-bold text-sky-500">
-                            ${booking?.totalAmount}
+                            {formatMoney(
+                              booking?.finalAmount ?? booking?.totalAmount,
+                              booking?.currency || "MVR"
+                            )}
                           </span>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
+
+                {/* E-ticket - only once the trip is actually confirmed */}
+                {booking?.status?.toUpperCase() === "CONFIRMED" && (
+                  <div className="mt-6 pt-4 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="text-sm">
+                      <p className="text-muted-foreground">Booking reference</p>
+                      <p className="font-mono font-medium tracking-wide">
+                        {bookingRef(booking.id)}
+                      </p>
+                    </div>
+                    <ETicketDialog booking={booking} />
+                  </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>

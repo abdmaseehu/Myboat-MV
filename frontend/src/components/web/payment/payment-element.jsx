@@ -11,7 +11,21 @@ import { toast } from "sonner";
 import useTicketStore from "@/store/use-ticket-store";
 import api from "@/lib/axios";
 
-export default function PaymentForm({ clientSecret, paymentIntentId, amount }) {
+export default function PaymentForm({
+  clientSecret,
+  paymentIntentId,
+  amount,
+  // Lets the checkout page know the booking landed before we clear the store,
+  // so its "selection missing" guard doesn't bounce the customer home.
+  onBookingComplete,
+  // Passenger details live in checkout state, not the ticket store, so they
+  // have to be handed down to reach the booking record.
+  passengers,
+  contactEmail,
+  contactPhone,
+  passengerCategory,
+  currency,
+}) {
   const stripe = useStripe();
   const elements = useElements();
   const router = useRouter();
@@ -22,6 +36,11 @@ export default function PaymentForm({ clientSecret, paymentIntentId, amount }) {
     try {
       const bookingData = {
         ...getBookingData(),
+        passengers,
+        contactEmail,
+        contactPhone,
+        passengerCategory,
+        currency,
         paymentMethod: "STRIPE",
         paymentStatus: "PAID",
         status: "CONFIRMED",
@@ -31,7 +50,8 @@ export default function PaymentForm({ clientSecret, paymentIntentId, amount }) {
       const response = await api.post("/payments/create-booking", bookingData);
 
       if (response.data.success) {
-        toast.success("Payment successful! Booking confirmed.");
+        toast.success("Payment successful! Your e-ticket is ready.");
+        onBookingComplete?.();
         resetTicketSelection();
         router.push("/users/bookings");
       }

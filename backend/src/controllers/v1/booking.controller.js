@@ -13,6 +13,21 @@ const seatNumberSchema = z.object({
   price: z.number().positive()
 }).passthrough();
 
+// One passenger per booked seat. Name, country and date of birth are required
+// at checkout; every flight field is optional because not all trips are
+// airport transfers.
+const passengerSchema = z.object({
+  seatKey: z.string().optional().nullable(),
+  seatNumber: z.string().optional().nullable(),
+  fullName: z.string().min(2, 'Passenger name is required'),
+  country: z.string().min(2, 'Country is required'),
+  dateOfBirth: z.string().min(1, 'Date of birth is required'),
+  flightType: z.enum(['ARRIVAL', 'DEPARTURE']).optional().nullable(),
+  flightDate: z.string().optional().nullable(),
+  flightNumber: z.string().optional().nullable(),
+  flightTime: z.string().optional().nullable(),
+}).passthrough();
+
 // Validation schema for booking
 const createBookingSchema = z.object({
   vehicleId: z.string().optional().nullable(),
@@ -37,6 +52,10 @@ const createBookingSchema = z.object({
   customerEmail: z.string().optional(),
   customerPhone: z.string().optional(),
   notes: z.string().optional(),
+  // Optional so manual/agent bookings made by operators still work.
+  passengers: z.array(passengerSchema).optional(),
+  contactEmail: z.string().email('A valid contact email is required').optional().nullable(),
+  contactPhone: z.string().optional().nullable(),
 });
 
 // NOTE: BookingStatus in prisma/schema.prisma only has PENDING | CONFIRMED | CANCELLED.
@@ -247,6 +266,9 @@ const createBooking = async (req, res) => {
         finalAmount: validatedData.finalAmount,
         paymentMethod: validatedData.paymentMethod,
         seatNumbers: seatNumbersWithMeta,
+        passengers: validatedData.passengers ?? undefined,
+        contactEmail: validatedData.contactEmail || validatedData.customerEmail || null,
+        contactPhone: validatedData.contactPhone || validatedData.customerPhone || null,
         passengerCategory: validatedData.passengerCategory,
         // Currency is ALWAYS derived from passenger category (MVR/USD independent).
         currency:

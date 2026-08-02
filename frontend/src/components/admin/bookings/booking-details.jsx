@@ -275,6 +275,53 @@ export default function BookingDetails({ booking, onUpdated }) {
           </CardContent>
         </Card>
 
+        {/* Passenger manifest — only present on customer web bookings */}
+        {Array.isArray(booking.passengers) && booking.passengers.length > 0 && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-lg font-semibold">
+                Passengers ({booking.passengers.length})
+              </CardTitle>
+              <User className="h-5 w-5 text-sky-500" />
+            </CardHeader>
+            <CardContent className="space-y-3 pt-4">
+              {(booking.contactEmail || booking.contactPhone) && (
+                <div className="rounded-lg bg-muted/40 p-3 text-sm space-y-1">
+                  <p className="text-muted-foreground text-xs">Main contact</p>
+                  {booking.contactEmail && <p>{booking.contactEmail}</p>}
+                  {booking.contactPhone && <p>{booking.contactPhone}</p>}
+                </div>
+              )}
+              {booking.passengers.map((p, i) => (
+                <div key={i} className="rounded-lg border p-3 text-sm space-y-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-medium">{p.fullName}</span>
+                    {p.seatNumber && (
+                      <Badge variant="outline">Seat {p.seatNumber}</Badge>
+                    )}
+                  </div>
+                  <p className="text-muted-foreground">
+                    {p.country}
+                    {p.dateOfBirth ? ` • DOB ${p.dateOfBirth}` : ""}
+                  </p>
+                  {(p.flightNumber || p.flightDate || p.flightType) && (
+                    <p className="text-muted-foreground text-xs">
+                      {p.flightType === "ARRIVAL"
+                        ? "Arrival"
+                        : p.flightType === "DEPARTURE"
+                        ? "Departure"
+                        : "Flight"}
+                      {p.flightNumber ? ` ${p.flightNumber}` : ""}
+                      {p.flightDate ? ` on ${p.flightDate}` : ""}
+                      {p.flightTime ? ` at ${p.flightTime}` : ""}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Payment & Status */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

@@ -15,6 +15,12 @@ import { toast } from "sonner";
 import api from "@/lib/axios";
 import PaymentForm from "@/components/web/payment/payment-element";
 import { useSettings } from "@/hooks/use-settings";
+import { useAuth } from "@/store/use-auth";
+import PassengerDetailsForm, {
+  makeEmptyPassenger,
+  passengersComplete,
+  cleanPassengers,
+} from "@/components/web/bus-tickets/passenger-details-form";
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -24,6 +30,12 @@ export default function CheckoutPage() {
   const [paymentIntentId, setPaymentIntentId] = useState("");
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("CASH");
+  const [bookingComplete, setBookingComplete] = useState(false);
+  const [passengers, setPassengers] = useState([]);
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [showPassengerErrors, setShowPassengerErrors] = useState(false);
+  const { user } = useAuth();
   const {
     selectedVehicle,
     selectedSeats,
@@ -89,15 +101,45 @@ export default function CheckoutPage() {
     setTotalAmount(total);
   }, [selectedSeats, setTotalAmount, tierPricePerSeat]);
 
+  // One passenger block per booked seat. Resized rather than rebuilt so
+  // anything already typed survives a seat being added or removed.
+  useEffect(() => {
+    setPassengers((prev) =>
+      selectedSeats.map(
+        (seat, i) =>
+          prev.find((p) => p.seatKey && p.seatKey === seat.key) ??
+          makeEmptyPassenger(seat, i)
+      )
+    );
+  }, [selectedSeats]);
+
+  // Prefill contact from the signed-in account; they can still override it.
+  useEffect(() => {
+    if (!user) return;
+    setContactEmail((v) => v || user.email || "");
+    setContactPhone((v) => v || user.mobile || "");
+  }, [user]);
+
   // Only judge the selection once the persisted store has been read back.
   // Running this against the empty initial state sent people home mid-booking.
   useEffect(() => {
     if (!hydrated) return;
+    // After a successful booking we deliberately clear the selection, which
+    // would otherwise trip this guard and bounce the customer to the homepage
+    // instead of their tickets.
+    if (bookingComplete) return;
     if (!selectedVehicle || !selectedSeats.length || !selectedBoardingPoint) {
       toast.error("Your booking selection expired. Please pick your seats again.");
       router.push("/");
     }
-  }, [hydrated, selectedVehicle, selectedSeats, selectedBoardingPoint, router]);
+  }, [
+    hydrated,
+    bookingComplete,
+    selectedVehicle,
+    selectedSeats,
+    selectedBoardingPoint,
+    router,
+  ]);
 
   // Initialize payment intent when selecting card payment
   const initializeStripePayment = async () => {
@@ -143,6 +185,12 @@ export default function CheckoutPage() {
     try {
       setPaymentMethod(method);
       if (method === "STRIPE") {
+        // Check before creating a payment intent, so nobody gets charged and
+        // then blocked on a missing passenger name.
+        if (!passengerDetailsValid()) {
+          setPaymentMethod("CASH");
+          return;
+        }
         await initializeStripePayment();
       } else {
         setClientSecret("");
@@ -155,8 +203,28 @@ export default function CheckoutPage() {
     }
   };
 
+  /**
+   * Gate on passenger details before any payment is attempted. Returns false
+   * and surfaces the errors when something mandatory is missing.
+   */
+  const passengerDetailsValid = () => {
+    const ok =
+      passengersComplete(passengers) &&
+      contactEmail.trim().length > 0 &&
+      contactPhone.trim().length > 0;
+    if (!ok) {
+      setShowPassengerErrors(true);
+      toast.error("Please complete the passenger details first.");
+      document
+        .getElementById("contact-email")
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    return ok;
+  };
+
   // Handle cash payment
   const handlePayment = async () => {
+    if (!passengerDetailsValid()) return;
     try {
       setLoading(true);
       const vendorId = selectedVehicle?.user?.vendor?.userId;
@@ -176,6 +244,9 @@ export default function CheckoutPage() {
           ? new Date(bookingDate).toISOString()
           : new Date().toISOString(),
         seatNumbers: selectedSeats,
+        passengers: cleanPassengers(passengers),
+        contactEmail: contactEmail.trim(),
+        contactPhone: contactPhone.trim(),
         totalAmount: totalAmount,
         discountAmount: 0,
         finalAmount: totalAmount,
@@ -186,7 +257,8 @@ export default function CheckoutPage() {
 
       const response = await api.post("/bookings", bookingData);
       if (response.data.success) {
-        toast.success("Booking confirmed successfully!");
+        toast.success("Booking confirmed! Your e-ticket is ready.");
+        setBookingComplete(true);
         resetTicketSelection();
         router.push("/users/bookings");
       }
@@ -265,6 +337,19 @@ export default function CheckoutPage() {
 
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-4">
+          <PassengerDetailsForm
+            passengers={passengers}
+            onChange={setPassengers}
+            contactEmail={contactEmail}
+            contactPhone={contactPhone}
+            onContactChange={(field, value) =>
+              field === "contactEmail"
+                ? setContactEmail(value)
+                : setContactPhone(value)
+            }
+            showErrors={showPassengerErrors}
+          />
+
           {/* Payment Method Selection */}
           <Card>
             <CardHeader>
@@ -303,6 +388,12 @@ export default function CheckoutPage() {
                 clientSecret={clientSecret}
                 paymentIntentId={paymentIntentId}
                 amount={totalAmount}
+                onBookingComplete={() => setBookingComplete(true)}
+                passengers={cleanPassengers(passengers)}
+                contactEmail={contactEmail.trim()}
+                contactPhone={contactPhone.trim()}
+                passengerCategory={passengerCategory}
+                currency={currency}
               />
             </Elements>
           ) : (

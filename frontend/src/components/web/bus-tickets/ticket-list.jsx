@@ -533,8 +533,14 @@ export default function TicketList({ routeId, date }) {
                           <div className="text-center md:text-right space-y-3 w-full">
                             {/* Price information (based on selected passenger category) */}
                             {(() => {
+                              // Must price THIS departure, not the vessel's
+                              // first schedule - each card is one departure and
+                              // they can carry different fares.
                               const { amount, currency: cur } =
-                                priceForCategory(vehicle, passengerCategory);
+                                priceForCategory(
+                                  vehicleForBooking,
+                                  passengerCategory
+                                );
                               const label =
                                 passengerCategory === "LOCAL"
                                   ? "Local"
