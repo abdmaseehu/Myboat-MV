@@ -28,6 +28,9 @@ const bookingInclude = {
       user: { select: { id: true } },
     },
   },
+  schedule: {
+    select: { id: true, departureTime: true, arrivalTime: true },
+  },
   boardingPoint: true,
   droppingPoint: true,
 };

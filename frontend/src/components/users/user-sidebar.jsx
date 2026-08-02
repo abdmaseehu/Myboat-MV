@@ -3,7 +3,6 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   User,
-  CreditCard,
   Clock,
   Settings,
   LogOut,
@@ -33,11 +32,9 @@ const routes = [
     icon: FileText,
     href: "/users/my-requests",
   },
-  {
-    label: "Checkout",
-    icon: CreditCard,
-    href: "/users/checkout",
-  },
+  // No "Checkout" entry: checkout is only reachable partway through a booking
+  // and has no meaning on its own - opening it directly just bounced the
+  // customer back to the homepage.
   {
     label: "Profile",
     icon: User,

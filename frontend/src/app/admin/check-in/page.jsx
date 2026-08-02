@@ -174,13 +174,23 @@ export default function CheckInPage() {
     };
   }, []);
 
+  // Names entered on the booking form, in seat order. Declared before the
+  // handlers that read them.
+  const manifest = Array.isArray(booking?.passengers) ? booking.passengers : [];
+  const travellers = manifest
+    .map((p) => String(p?.fullName ?? "").trim())
+    .filter(Boolean);
+
   const confirm = async () => {
     if (!booking) return;
     setConfirming(true);
     try {
       const { data } = await api.post("/checkins", { bookingId: booking.id });
       const customer =
-        data?.data?.booking?.user?.firstName || booking.user?.firstName || "guest";
+        travellers[0] ||
+        data?.data?.booking?.user?.firstName ||
+        booking.user?.firstName ||
+        "guest";
       toast.success(`Checked in — ${customer}`);
       setBooking(null);
       setManualRef("");
@@ -286,7 +296,16 @@ export default function CheckInPage() {
               <div className="rounded-lg border p-3 space-y-2 text-sm">
                 <div className="flex items-center justify-between">
                   <div className="font-semibold">
-                    {booking.user?.firstName} {booking.user?.lastName}
+                    {/*
+                      Who is actually travelling, which is what matters at the
+                      jetty. The account holder often books for someone else,
+                      so fall back to their name only when no manifest exists.
+                    */}
+                    {travellers.length
+                      ? travellers[0]
+                      : `${booking.user?.firstName ?? ""} ${
+                          booking.user?.lastName ?? ""
+                        }`.trim() || "Passenger"}
                   </div>
                   <Badge
                     className={
@@ -299,8 +318,31 @@ export default function CheckInPage() {
                   </Badge>
                 </div>
                 <div className="text-muted-foreground text-xs">
-                  {booking.user?.email || booking.user?.mobile}
+                  Booked by {booking.user?.firstName} {booking.user?.lastName} ·{" "}
+                  {booking.contactEmail ||
+                    booking.user?.email ||
+                    booking.user?.mobile}
                 </div>
+
+                {travellers.length > 1 && (
+                  <div className="rounded-md bg-muted/50 p-2">
+                    <p className="text-xs text-muted-foreground mb-1">
+                      All passengers
+                    </p>
+                    <ol className="space-y-0.5">
+                      {manifest.map((p, i) => (
+                        <li key={i} className="flex justify-between gap-3">
+                          <span>{p.fullName}</span>
+                          <span className="text-muted-foreground text-xs shrink-0">
+                            {p.country}
+                            {p.seatNumber ? ` · Seat ${p.seatNumber}` : ""}
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+
                 <div>
                   Route:{" "}
                   <span className="font-medium">
@@ -315,6 +357,22 @@ export default function CheckInPage() {
                       : "—"}
                   </span>
                 </div>
+                {booking.schedule?.departureTime && (
+                  <div>
+                    Departs:{" "}
+                    <span className="font-medium">
+                      {new Date(booking.schedule.departureTime).toLocaleTimeString(
+                        "en-US",
+                        {
+                          hour: "numeric",
+                          minute: "2-digit",
+                          hour12: true,
+                          timeZone: "UTC",
+                        }
+                      )}
+                    </span>
+                  </div>
+                )}
                 <div>
                   Seats: <span className="font-medium">{seatCount || "—"}</span>
                 </div>

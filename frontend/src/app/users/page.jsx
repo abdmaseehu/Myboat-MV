@@ -13,9 +13,10 @@ import {
   Loader2,
   Clock,
   MapPin,
-  DollarSign,
+  Wallet,
 } from "lucide-react";
 import { format } from "date-fns";
+import { formatMoney } from "@/lib/currency";
 import StatsCard from "@/components/dashboard/StatsCard";
 import RecentBookings from "@/components/dashboard/RecentBookings";
 import { useAuth } from "@/store/use-auth";
@@ -115,12 +116,24 @@ export default function DashboardPage() {
           description="All time bookings"
           delay={0.1}
         />
+        {/*
+          A customer spends, they don't earn. MVR and USD are kept as separate
+          cards because the two currencies never mix - summing them would be a
+          meaningless number.
+        */}
         <StatsCard
-          title="Total Revenue"
-          value={`$${stats?.totalRevenue || 0}`}
-          icon={DollarSign}
-          description="Total earnings"
+          title="Total Spent (MVR)"
+          value={formatMoney(stats?.revenueMvr || 0, "MVR")}
+          icon={Wallet}
+          description="Paid on local-fare trips"
           delay={0.2}
+        />
+        <StatsCard
+          title="Total Spent (USD)"
+          value={formatMoney(stats?.revenueUsd || 0, "USD")}
+          icon={Wallet}
+          description="Paid on tourist-fare trips"
+          delay={0.3}
         />
 
         {/* Admin-specific Stats */}
