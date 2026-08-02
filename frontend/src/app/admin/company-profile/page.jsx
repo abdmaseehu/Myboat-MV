@@ -169,11 +169,17 @@ export default function CompanyProfilePage() {
   const publicUrl = form.publicSlug
     ? `${PUBLIC_APP_URL}/o/${form.publicSlug}`
     : "";
-  const embedUrl = form.publicSlug
-    ? embedType === "single" && embedVesselId
-      ? `${PUBLIC_APP_URL}/embed/vessel/${embedVesselId}`
-      : `${PUBLIC_APP_URL}/embed/operator/${form.publicSlug}`
-    : "";
+  // A single-vessel embed is addressed by vessel id, so it works even before
+  // the operator has picked a public URL. Only the all-vessels widget needs
+  // the slug.
+  const embedUrl =
+    embedType === "single"
+      ? embedVesselId
+        ? `${PUBLIC_APP_URL}/embed/vessel/${embedVesselId}`
+        : ""
+      : form.publicSlug
+      ? `${PUBLIC_APP_URL}/embed/operator/${form.publicSlug}`
+      : "";
   const embedSnippet = embedUrl
     ? `<iframe src="${embedUrl}" width="100%" height="600" frameborder="0"></iframe>`
     : "";
@@ -651,8 +657,17 @@ export default function CompanyProfilePage() {
                   readOnly
                   value={embedSnippet}
                   rows={4}
+                  placeholder="Your embed code will appear here"
                   className="w-full rounded-md border bg-muted/40 p-3 font-mono text-xs"
                 />
+                {/* Say why the box is empty instead of leaving it blank. */}
+                {!embedSnippet && (
+                  <p className="text-xs text-muted-foreground">
+                    {embedType === "single"
+                      ? "Select a vessel above to generate its embed code."
+                      : "Set your public URL on the Public URL tab first — the all-vessels widget is served from it."}
+                  </p>
+                )}
                 <div>
                   <Button
                     type="button"

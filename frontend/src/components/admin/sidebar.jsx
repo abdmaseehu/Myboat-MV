@@ -29,6 +29,7 @@ import {
   Users2,
   UserCog,
   Tags,
+  Code2,
   DollarSign,
   Database,
   Globe,
@@ -166,6 +167,12 @@ const adminRoutes = [
         label: "Custom Fields",
         icon: Database,
         href: "/admin/custom-fields",
+        color: "text-sky-500",
+      },
+      {
+        label: "Embed Builder",
+        icon: Code2,
+        href: "/admin/embed-builder",
         color: "text-sky-500",
       },
       {

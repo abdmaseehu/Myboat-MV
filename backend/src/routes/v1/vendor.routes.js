@@ -14,11 +14,16 @@ const {
   getVendorByPublicSlug,
   getPublicVendors,
   getPublicVessel,
+  getPublicVessels,
+  getPublicRoute,
 } = require('../../controllers/v1/vendor.controller');
 
 // PUBLIC routes (no auth)
 router.get('/public', getPublicVendors);
 router.get('/public/vessel/:id', getPublicVessel);
+// Must come before '/public/:slug', otherwise Express matches these as slugs.
+router.get('/public/vessels', getPublicVessels);
+router.get('/public/route/:id', getPublicRoute);
 router.get('/public/:slug', getVendorByPublicSlug);
 
 // Authenticated "me" routes - any authenticated user (silently no-ops if not a vendor)

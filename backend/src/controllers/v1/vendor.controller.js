@@ -441,6 +441,30 @@ const normalizeSlug = (raw) => {
     .slice(0, 80);
 };
 
+/**
+ * Derive a unique public slug from a business name.
+ * Falls back to "operator" for names that normalise to nothing (e.g. all
+ * non-Latin), and appends -2, -3, ... until the slug is free.
+ */
+const buildUniqueSlug = async (businessName, vendorIdToIgnore) => {
+  const base = normalizeSlug(businessName) || 'operator';
+  let candidate = base;
+
+  for (let n = 2; n < 100; n++) {
+    const clash = await prisma.vendor.findFirst({
+      where: {
+        publicSlug: candidate,
+        ...(vendorIdToIgnore ? { NOT: { id: vendorIdToIgnore } } : {}),
+      },
+      select: { id: true },
+    });
+    if (!clash) return candidate;
+    candidate = `${base}-${n}`;
+  }
+  // Practically unreachable; keeps the caller from looping forever.
+  return `${base}-${Date.now().toString(36)}`;
+};
+
 // GET /vendors/me - current operator's vendor record
 const getMyVendor = async (req, res) => {
   try {
@@ -521,8 +545,21 @@ const updateMyVendor = async (req, res) => {
       if (clash) {
         return res.status(409).json({ success: false, message: 'This URL is already taken. Please choose another.' });
       }
+    } else if (
+      (validated.publicSlug === '' || validated.publicSlug === null) &&
+      !existing.publicSlug
+    ) {
+      // Nothing chosen and none stored: derive one from the business name so
+      // the public profile and embed codes work without extra setup. Operators
+      // can still overwrite it from the Public URL tab.
+      validated.publicSlug = await buildUniqueSlug(
+        validated.businessName || existing.businessName,
+        existing.id
+      );
     } else if (validated.publicSlug === '') {
-      validated.publicSlug = null;
+      // Explicitly cleared but one already exists - keep the existing slug so
+      // links already shared by the operator don't silently break.
+      delete validated.publicSlug;
     }
 
     // Convert empty-string contactEmail to null so DB doesn't store empty
@@ -696,6 +733,115 @@ const getPublicVessel = async (req, res) => {
   }
 };
 
+// Shape shared by the multi-vessel and route embeds.
+const PUBLIC_VESSEL_SELECT = {
+  id: true,
+  vehicleName: true,
+  vehicleNumber: true,
+  vehicleImage: true,
+  vehicleType: true,
+  baseIsland: true,
+  totalSeats: true,
+  hasAc: true,
+  vehicleRating: true,
+};
+
+// GET /vendors/public/vessels?ids=a,b,c - PUBLIC, several vessels in one embed
+const getPublicVessels = async (req, res) => {
+  try {
+    const ids = String(req.query.ids || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 24); // keep the embed (and the query) a sane size
+
+    if (!ids.length) {
+      return res.status(400).json({ success: false, message: 'No vessel ids supplied' });
+    }
+
+    const vessels = await prisma.vehicle.findMany({
+      where: { id: { in: ids }, vehicleStatus: { in: ['AVAILABLE', 'BOOKED'] } },
+      select: { ...PUBLIC_VESSEL_SELECT, userId: true },
+    });
+
+    // Attach each vessel's operator without leaking userId.
+    const vendors = await prisma.vendor.findMany({
+      where: { userId: { in: [...new Set(vessels.map((v) => v.userId).filter(Boolean))] } },
+      select: { userId: true, businessName: true, businessLogo: true, publicSlug: true },
+    });
+    const byUser = new Map(vendors.map((v) => [v.userId, v]));
+
+    const data = vessels.map(({ userId, ...v }) => {
+      const vendor = byUser.get(userId) || null;
+      return {
+        ...v,
+        vendor: vendor ? { ...vendor, userId: undefined } : null,
+      };
+    });
+
+    // Preserve the order the admin picked rather than DB order.
+    data.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+
+    res.json({ success: true, data: { vessels: data } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message || 'Error retrieving vessels' });
+  }
+};
+
+// GET /vendors/public/route/:id - PUBLIC route + its active departures (embed)
+const getPublicRoute = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const route = await prisma.route.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        sourceCity: true,
+        destinationCity: true,
+        serviceType: true,
+        distance: true,
+        durationMinutes: true,
+        isActive: true,
+        boardingPoints: {
+          select: { id: true, locationName: true, sequenceNumber: true },
+          orderBy: { sequenceNumber: 'asc' },
+        },
+      },
+    });
+
+    if (!route || route.isActive === false) {
+      return res.status(404).json({ success: false, message: 'Route not found' });
+    }
+
+    const schedules = await prisma.busSchedule.findMany({
+      where: { routeId: id, status: 'ACTIVE' },
+      select: {
+        id: true,
+        departureTime: true,
+        arrivalTime: true,
+        availableSeats: true,
+        priceLocalMvr: true,
+        priceExpatMvr: true,
+        priceTouristUsd: true,
+        vehicles: { select: PUBLIC_VESSEL_SELECT },
+      },
+    });
+
+    // departureTime is a full timestamp but means a time of day, so sort on
+    // minutes-of-day rather than the raw date.
+    const minutesOfDay = (d) => {
+      const t = new Date(d);
+      return t.getUTCHours() * 60 + t.getUTCMinutes();
+    };
+    schedules.sort((a, b) => minutesOfDay(a.departureTime) - minutesOfDay(b.departureTime));
+
+    res.json({ success: true, data: { route, schedules } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message || 'Error retrieving route' });
+  }
+};
+
 module.exports = {
   getAllVendors,
   getVendorById,
@@ -707,4 +853,6 @@ module.exports = {
   getVendorByPublicSlug,
   getPublicVendors,
   getPublicVessel,
+  getPublicVessels,
+  getPublicRoute,
 };
