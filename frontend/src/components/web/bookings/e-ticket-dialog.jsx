@@ -21,6 +21,7 @@ import {
   Ship,
   MapPin,
   Calendar,
+  Clock,
 } from "lucide-react";
 import { formatMoney } from "@/lib/currency";
 
@@ -47,6 +48,21 @@ const fmtDate = (d) => {
  * Prefer a real seat number, else the trailing number of the key, else the
  * passenger's position in the booking.
  */
+/** Schedule times are timestamps but mean a time of day. */
+const fmtTime = (d) => {
+  if (!d) return null;
+  try {
+    return new Date(d).toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: "UTC",
+    });
+  } catch {
+    return null;
+  }
+};
+
 const seatLabel = (seat, index) => {
   if (seat?.seatNumber) return String(seat.seatNumber);
   const trailing = String(seat?.key ?? "").match(/(\d+)$/);
@@ -66,6 +82,8 @@ export default function ETicketDialog({ booking, trigger }) {
     (s) => s && s.key !== "_meta"
   );
   const passengers = booking?.passengers || [];
+  const departure = fmtTime(booking?.schedule?.departureTime);
+  const arrival = fmtTime(booking?.schedule?.arrivalTime);
 
   const handleDownloadPdf = async () => {
     const canvas = printRef.current?.querySelector("canvas");
@@ -134,6 +152,9 @@ export default function ETicketDialog({ booking, trigger }) {
 
       line("Route", `${booking?.route?.sourceCity ?? "—"} to ${booking?.route?.destinationCity ?? "—"}`);
       line("Travel date", fmtDate(booking?.bookingDate));
+      if (departure) {
+        line("Departure", arrival ? `${departure} (arrives ${arrival})` : departure);
+      }
       line("Vessel", booking?.vehicle?.vehicleName ?? "—");
       if (booking?.boardingPoint?.locationName) {
         line("Boarding point", booking.boardingPoint.locationName);
@@ -243,6 +264,22 @@ export default function ETicketDialog({ booking, trigger }) {
                 </span>
                 <span className="font-medium">{fmtDate(booking?.bookingDate)}</span>
               </div>
+              {departure && (
+                <div className="row flex justify-between text-sm">
+                  <span className="text-muted-foreground flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5" /> Departure
+                  </span>
+                  <span className="font-semibold">
+                    {departure}
+                    {arrival ? (
+                      <span className="font-normal text-muted-foreground">
+                        {" "}
+                        — {arrival} arrival
+                      </span>
+                    ) : null}
+                  </span>
+                </div>
+              )}
               <div className="row flex justify-between text-sm">
                 <span className="text-muted-foreground flex items-center gap-1.5">
                   <Ship className="h-3.5 w-3.5" /> Vessel

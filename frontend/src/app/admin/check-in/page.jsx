@@ -79,49 +79,98 @@ export default function CheckInPage() {
   }, []);
 
   const stopScanner = useCallback(async () => {
-    if (scannerRef.current) {
-      try {
-        await scannerRef.current.clear();
-      } catch (_) {}
-      scannerRef.current = null;
-    }
+    const scanner = scannerRef.current;
+    scannerRef.current = null;
     setScanning(false);
+    if (!scanner) return;
+    try {
+      // stop() only succeeds while actually scanning; clear() releases the DOM.
+      if (scanner.isScanning) await scanner.stop();
+    } catch (_) {}
+    try {
+      await scanner.clear();
+    } catch (_) {}
   }, []);
 
+  /**
+   * Opens the rear camera in one tap.
+   *
+   * Html5QrcodeScanner (the previous approach) renders its own picker listing
+   * every camera and defaults to the front one, which is useless for scanning a
+   * passenger's phone. Html5Qrcode takes a camera constraint directly, so we
+   * ask for the rear lens and only fall back if the device refuses.
+   */
   const startScanner = useCallback(async () => {
     if (scannerRef.current) return;
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+    let scanner;
     try {
-      const mod = await import("html5-qrcode");
-      const { Html5QrcodeScanner } = mod;
-      const scanner = new Html5QrcodeScanner(
-        containerId,
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        /* verbose */ false
-      );
-      scanner.render(
-        async (decodedText) => {
-          await stopScanner();
-          await lookup(decodedText);
-        },
-        () => {
-          /* ignore per-frame decode errors */
+      const { Html5Qrcode } = await import("html5-qrcode");
+      scanner = new Html5Qrcode(containerId, /* verbose */ false);
+
+      const onHit = async (decodedText) => {
+        await stopScanner();
+        await lookup(decodedText);
+      };
+      const onFrameError = () => {
+        /* per-frame decode misses are normal - ignore */
+      };
+
+      // Strictest first: some Android devices honour `exact` only.
+      const attempts = [
+        { facingMode: { exact: "environment" } },
+        { facingMode: "environment" },
+      ];
+
+      let started = false;
+      for (const camera of attempts) {
+        try {
+          await scanner.start(camera, config, onHit, onFrameError);
+          started = true;
+          break;
+        } catch (_) {
+          /* try the next constraint */
         }
-      );
+      }
+
+      // Last resort: pick the last device, which is usually the rear lens.
+      if (!started) {
+        const cameras = await Html5Qrcode.getCameras();
+        if (!cameras?.length) throw new Error("No camera found on this device");
+        const rear =
+          cameras.find((c) => /back|rear|environment/i.test(c.label)) ||
+          cameras[cameras.length - 1];
+        await scanner.start(rear.id, config, onHit, onFrameError);
+      }
+
       scannerRef.current = scanner;
       setScanning(true);
     } catch (err) {
-      console.error(err);
-      toast.error("Camera scanner failed to start. Use manual entry instead.");
+      console.error("Scanner start failed:", err);
+      try {
+        await scanner?.clear();
+      } catch (_) {}
+      scannerRef.current = null;
+      setScanning(false);
+      toast.error(
+        err?.message?.includes("Permission") || err?.name === "NotAllowedError"
+          ? "Camera permission denied. Allow camera access, or type the booking code below."
+          : "Could not open the camera. Type the booking code below instead."
+      );
     }
   }, [lookup, stopScanner]);
 
+  // Release the camera if the operator navigates away mid-scan.
   useEffect(() => {
     return () => {
-      if (scannerRef.current) {
-        try {
-          scannerRef.current.clear();
-        } catch (_) {}
-      }
+      const scanner = scannerRef.current;
+      scannerRef.current = null;
+      if (!scanner) return;
+      Promise.resolve()
+        .then(() => (scanner.isScanning ? scanner.stop() : null))
+        .then(() => scanner.clear())
+        .catch(() => {});
     };
   }, []);
 
@@ -186,7 +235,7 @@ export default function CheckInPage() {
               {!scanning && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <p className="text-sm text-muted-foreground text-center px-4">
-                    Press <b>Start Scanner</b> to activate the camera and scan a
+                    Press <b>Start Scanner</b> to open the rear camera and scan a
                     ticket QR code.
                   </p>
                 </div>

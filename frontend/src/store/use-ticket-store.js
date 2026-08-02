@@ -68,6 +68,9 @@ const useTicketStore = create(
           vehicleId: state.selectedVehicle?.id,
           vendorId: state.selectedVehicle?.user?.vendor?.userId,
           routeId: state.selectedVehicle?.route?.id,
+          // selectedVehicle carries exactly one schedule - the departure the
+          // customer picked on the search results card.
+          scheduleId: state.selectedVehicle?.schedules?.[0]?.id,
           boardingPointId: state.selectedBoardingPoint?.id,
           droppingPointId: state.selectedVehicle?.route?.droppingPoints?.[0]?.id,
           bookingDate: state.bookingDate

@@ -88,6 +88,18 @@ export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
   const priceUnavailable = unitPrice === null || Number.isNaN(Number(unitPrice));
   const capacity = vehicle?.totalSeats || vehicle?.layout?.totalSeats || 10;
 
+  // Seats allowed in one booking. The old hardcoded 4 came from the bus script
+  // and made no sense on a 32-seat ferry. The ceiling is whatever the departure
+  // still has free; operators can tighten it per vessel.
+  const seatsAvailable = Number(
+    vehicle?.schedules?.[0]?.availableSeats ?? capacity
+  );
+  const vesselCap = Number(vehicle?.maxSeatsPerBooking) || null;
+  const maxSeats = Math.max(
+    1,
+    Math.min(vesselCap || Infinity, seatsAvailable || capacity, capacity)
+  );
+
   // Fetch bookings when component mounts or when vehicle/date changes
   useEffect(() => {
     const fetchBookings = async () => {
@@ -134,8 +146,10 @@ export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
         newSeats = prevSeats.filter((seat) => seat.key !== seatKey);
       } else {
         // Add the seat if it's not selected and we haven't reached the limit
-        if (prevSeats.length >= 4) {
-          toast.error("You can only select up to 4 seats");
+        if (prevSeats.length >= maxSeats) {
+          toast.error(
+            `You can select up to ${maxSeats} seat${maxSeats === 1 ? "" : "s"}`
+          );
           return prevSeats;
         }
 
@@ -144,7 +158,14 @@ export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
 
         newSeats = [
           ...prevSeats,
-          { key: seatKey, type: seatInfo.type, price: Number(unitPrice) || 0 },
+          {
+            key: seatKey,
+            // The number shown on the seat in the grid. Without this the API
+            // falls back to "SEAT-0" and that ends up printed on the ticket.
+            seatNumber: String(seatInfo.number ?? ""),
+            type: seatInfo.type,
+            price: Number(unitPrice) || 0,
+          },
         ];
       }
 
@@ -173,6 +194,7 @@ export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
       const price = Number(unitPrice) || 0;
       const virtualSeats = Array.from({ length: passengerCount }, (_, i) => ({
         key: `virtual-${i + 1}`,
+        seatNumber: String(i + 1),
         type: "SEAT",
         price,
       }));
@@ -262,7 +284,11 @@ export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
                 Select Your Seats
               </SheetTitle>
               <SheetDescription className="flex items-center justify-center gap-2">
-                <span>Maximum 4 seats can be selected</span>
+                <span>
+                  {maxSeats === 1
+                    ? "1 seat can be selected"
+                    : `Up to ${maxSeats} seats can be selected`}
+                </span>
                 {Array.isArray(selectedSeats) && selectedSeats.length > 0 && (
                   <Badge
                     variant="outline"
@@ -346,7 +372,7 @@ export default function SeatLayoutSheet({ vehicle, isOpen, onClose }) {
                       onClick={() =>
                         setPassengerCount((c) => Math.min(capacity, c + 1))
                       }
-                      disabled={passengerCount >= capacity}
+                      disabled={passengerCount >= maxSeats}
                     >
                       <Plus className="w-4 h-4" />
                     </Button>

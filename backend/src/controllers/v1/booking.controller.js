@@ -33,6 +33,7 @@ const createBookingSchema = z.object({
   vehicleId: z.string().optional().nullable(),
   vendorId: z.string(),
   routeId: z.string().optional().nullable(),
+  scheduleId: z.string().optional().nullable(),
   boardingPointId: z.string().optional().nullable(),
   droppingPointId: z.string().optional().nullable(),
   bookingDate: z.string().datetime(),
@@ -111,6 +112,13 @@ const bookingInclude = {
       destinationCity: true,
     },
   },
+  schedule: {
+    select: {
+      id: true,
+      departureTime: true,
+      arrivalTime: true,
+    },
+  },
   boardingPoint: true,
   droppingPoint: true,
 };
@@ -172,7 +180,8 @@ const createBooking = async (req, res) => {
         
         const formattedSeat = {
           key: seat.key || `${seat.deck || 'LOWER'}-${seat.seatNumber || seat.number || index}`,
-          seatNumber: seat.seatNumber || seat.number || `SEAT-${index}`,
+          // Plain ordinal fallback - "SEAT-0" was ending up printed on tickets.
+          seatNumber: String(seat.seatNumber || seat.number || index + 1),
           deck: seat.deck || 'LOWER',
           type: seat.type || 'SEAT',
           price: Number(seat.price || 0)
@@ -258,6 +267,7 @@ const createBooking = async (req, res) => {
         vendorId: validatedData.vendorId,
         vehicleId: validatedData.vehicleId || null,
         routeId: validatedData.routeId || null,
+        scheduleId: validatedData.scheduleId || null,
         boardingPointId: validatedData.boardingPointId || null,
         droppingPointId: validatedData.droppingPointId || null,
         bookingDate: validatedData.bookingDate,

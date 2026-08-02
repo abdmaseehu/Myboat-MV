@@ -89,6 +89,7 @@ const vehicleSchema = z.object({
   description: z.string().optional(),
   termsConditions: z.string().optional(),
   seatSelectionEnabled: z.boolean().optional().default(true),
+  maxSeatsPerBooking: z.coerce.number().int().positive().nullable().optional(),
   cancellationPolicy: z.string().optional(),
 });
 
@@ -169,6 +170,7 @@ export default function CreateVehicleForm() {
       description: "",
       termsConditions: "",
       seatSelectionEnabled: true,
+      maxSeatsPerBooking: null,
       cancellationPolicy: "",
     },
   });
@@ -496,6 +498,36 @@ export default function CreateVehicleForm() {
                           className="bg-muted/50 dark:bg-muted/50 text-muted-foreground cursor-not-allowed"
                         />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+
+                <FormField
+                  control={form.control}
+                  name="maxSeatsPerBooking"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Max Seats Per Booking</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={1}
+                          placeholder="No limit"
+                          {...field}
+                          value={field.value ?? ""}
+                          onChange={(e) =>
+                            field.onChange(
+                              e.target.value === "" ? null : Number(e.target.value)
+                            )
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Leave blank for no limit — customers can then book as many
+                        seats as the departure still has free.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

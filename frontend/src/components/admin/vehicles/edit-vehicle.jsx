@@ -51,6 +51,7 @@ const vehicleSchema = z.object({
   description: z.string().optional(),
   termsConditions: z.string().optional(),
   seatSelectionEnabled: z.boolean().optional().default(true),
+  maxSeatsPerBooking: z.coerce.number().int().positive().nullable().optional(),
   cancellationPolicy: z.string().optional(),
 });
 
@@ -79,6 +80,7 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
       description: vehicle?.specification?.description || "",
       termsConditions: vehicle?.termsConditions || "",
       seatSelectionEnabled: vehicle?.seatSelectionEnabled !== false,
+      maxSeatsPerBooking: vehicle?.maxSeatsPerBooking ?? null,
       cancellationPolicy: vehicle?.cancellationPolicy || "",
     },
   });
@@ -103,6 +105,7 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
         description: vehicle.specification?.description || "",
         termsConditions: vehicle.termsConditions || "",
         seatSelectionEnabled: vehicle.seatSelectionEnabled !== false,
+        maxSeatsPerBooking: vehicle.maxSeatsPerBooking ?? null,
         cancellationPolicy: vehicle.cancellationPolicy || "",
       });
     }
@@ -161,6 +164,12 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
           formData.append(key, data[key]);
         }
       });
+
+      // The loop above skips nulls, so clearing the cap would otherwise be a
+      // no-op. Send an empty string, which the API maps back to NULL.
+      if (data.maxSeatsPerBooking === null || data.maxSeatsPerBooking === "") {
+        formData.append("maxSeatsPerBooking", "");
+      }
 
       formData.append("specification", JSON.stringify(specification));
 
@@ -543,6 +552,35 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
                       className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-sky-500"
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="maxSeatsPerBooking"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Max Seats Per Booking</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder="No limit"
+                      {...field}
+                      value={field.value ?? ""}
+                      onChange={(e) =>
+                        field.onChange(
+                          e.target.value === "" ? null : Number(e.target.value)
+                        )
+                      }
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Leave blank for no limit — customers can then book as many
+                    seats as the departure still has free.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

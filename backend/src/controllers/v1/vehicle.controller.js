@@ -63,6 +63,11 @@ const vehicleSchema = z.object({
   seatSelectionEnabled: z
     .union([z.boolean(), z.enum(['true', 'false']).transform((s) => s === 'true')])
     .optional(),
+  // Blank means "no cap" - the departure's availability is the only limit.
+  maxSeatsPerBooking: z
+    .union([z.coerce.number().int().positive(), z.literal('').transform(() => null)])
+    .nullable()
+    .optional(),
 });
 
 const MAX_VESSEL_IMAGES = 5;

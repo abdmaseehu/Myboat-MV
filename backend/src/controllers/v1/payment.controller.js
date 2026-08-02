@@ -61,6 +61,7 @@ const createBookingAfterPayment = asyncHandler(async (req, res) => {
         vehicleId: bookingData.vehicleId,
         vendorId: bookingData.vendorId,
         routeId: bookingData.routeId,
+        scheduleId: bookingData.scheduleId || null,
         userId: req.user.id,
         boardingPointId: bookingData.boardingPointId,
         droppingPointId: bookingData.droppingPointId,

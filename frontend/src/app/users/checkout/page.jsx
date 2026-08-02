@@ -237,6 +237,8 @@ export default function CheckoutPage() {
         vehicleId: selectedVehicle.id,
         vendorId,
         routeId: selectedVehicle?.route?.id,
+        // The specific departure picked on the search card.
+        scheduleId: schedule?.id ?? null,
         boardingPointId: selectedBoardingPoint.id,
         droppingPointId: selectedVehicle?.route?.droppingPoints?.[0]?.id ?? null,
         // The date the customer actually searched for, not today.

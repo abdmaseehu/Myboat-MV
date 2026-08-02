@@ -207,6 +207,9 @@ model Vehicle {
     termsConditions       String?                 @map("terms_conditions")
     cancellationPolicy    String?                 @map("cancellation_policy")
     seatSelectionEnabled  Boolean                 @default(true) @map("seat_selection_enabled")
+    // Cap on seats per booking. Null means no artificial cap - the only limit
+    // is what the departure still has available.
+    maxSeatsPerBooking    Int?                    @map("max_seats_per_booking")
     vehicleStatus         VehicleStatus           @default(AVAILABLE) @map("vehicle_status")
     vehicleRating         Decimal?                @map("vehicle_rating") @db.Decimal(2, 1)
     totalSeats            Int                     @map("total_seats")
@@ -336,6 +339,7 @@ model BusSchedule {
     route               Route          @relation(fields: [routeId], references: [id])
     user                User           @relation(fields: [userId], references: [id])
     vehicles            Vehicle[]      @relation("ScheduleVehicles")
+    bookings            Booking[]
 
     @@map("bus_schedules")
 }
@@ -346,6 +350,9 @@ model Booking {
     vendorId           String?        @map("vendor_id")
     vehicleId          String?        @map("vehicle_id")
     routeId            String?        @map("route_id")
+    // Which departure was booked. Without this a ticket cannot show a time,
+    // since a vessel runs several schedules a day on the same route.
+    scheduleId         String?        @map("schedule_id")
     boardingPointId    String?        @map("boarding_point_id")
     droppingPointId    String?        @map("dropping_point_id")
     bookingDate        DateTime?      @map("booking_date")
@@ -381,6 +388,7 @@ model Booking {
     vendor             Vendor?        @relation(fields: [vendorId], references: [userId])
     vehicle            Vehicle?       @relation(fields: [vehicleId], references: [id])
     route              Route?         @relation(fields: [routeId], references: [id])
+    schedule           BusSchedule?   @relation(fields: [scheduleId], references: [id])
     boardingPoint      BoardingPoint? @relation(fields: [boardingPointId], references: [id])
     droppingPoint      DroppingPoint? @relation(fields: [droppingPointId], references: [id])
 
