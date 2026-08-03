@@ -99,6 +99,20 @@ export default function CharterPage() {
     }
   }, [user, setValue]);
 
+  // Prefill the trip from a charter search. "Request Boat MV" links here with
+  // no vendor, which the submit handler already treats as a broadcast request.
+  useEffect(() => {
+    const qs = new URLSearchParams(window.location.search);
+    const from = qs.get("from");
+    const to = qs.get("to");
+    const date = qs.get("date");
+    const pax = Number(qs.get("passengers"));
+    if (from) setValue("origin", from);
+    if (to) setValue("destination", to);
+    if (date) setValue("tripDate", date);
+    if (pax > 0) setValue("passengers", pax);
+  }, [setValue]);
+
   // Load approved operators + honour ?operator=<publicSlug> deep links
   // (e.g. the "Request a Charter" button on an operator profile page).
   useEffect(() => {
@@ -109,13 +123,17 @@ export default function CharterPage() {
         const list = Array.isArray(res?.data?.data) ? res.data.data : [];
         if (cancelled) return;
         setOperators(list);
-        const slug = new URLSearchParams(window.location.search).get("operator");
+        const qs = new URLSearchParams(window.location.search);
+        const slug = qs.get("operator");
         if (slug) {
           const match = list.find(
             (o) => (o.publicSlug || "").toLowerCase() === slug.toLowerCase()
           );
           if (match) setVendorId(match.id);
         }
+        // Search results link here with the operator id directly.
+        const vendor = qs.get("vendor");
+        if (vendor && list.some((o) => o.id === vendor)) setVendorId(vendor);
       } catch {
         // Non-fatal: the form still works as a broadcast request.
       }

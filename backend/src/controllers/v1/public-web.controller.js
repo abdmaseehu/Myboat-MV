@@ -253,8 +253,122 @@ const searchRoutes = async (req, res) => {
   }
 };
 
+/* -------------------------------------------------------------------------- */
+/*  Private charter search                                                     */
+/* -------------------------------------------------------------------------- */
+
+// What the customer needs to see on a result card.
+const CHARTER_VESSEL_SELECT = {
+  id: true,
+  vehicleName: true,
+  vehicleNumber: true,
+  vehicleImage: true,
+  images: true,
+  vehicleType: true,
+  baseIsland: true,
+  totalSeats: true,
+  hasAc: true,
+  vehicleRating: true,
+  amenities: true,
+  charterPricingMode: true,
+  charterInstantBooking: true,
+  userId: true,
+  charterRates: true,
+};
+
+/**
+ * GET /public-web/charter-search?from&to&date&passengers
+ *
+ * Every vessel offered for private charter is returned — a charter boat can
+ * usually sail anywhere, so a missing rate row means "ask for a quote" rather
+ * than "unavailable". Vessels with a published price for this exact island
+ * pair are listed first.
+ */
+const searchCharter = async (req, res) => {
+  try {
+    const { from = '', to = '', passengers } = req.query;
+    const seatsNeeded = Number(passengers) || 1;
+
+    const vessels = await prisma.vehicle.findMany({
+      where: {
+        serviceTypes: { array_contains: ['PRIVATE_CHARTER'] },
+        vehicleStatus: { in: ['AVAILABLE', 'BOOKED'] },
+        // A charter is the whole boat, so capacity has to fit the party.
+        totalSeats: { gte: seatsNeeded },
+      },
+      select: CHARTER_VESSEL_SELECT,
+      orderBy: { vehicleRating: 'desc' },
+    });
+
+    // Attach each vessel's operator without exposing userId.
+    const vendors = await prisma.vendor.findMany({
+      where: { userId: { in: [...new Set(vessels.map((v) => v.userId).filter(Boolean))] } },
+      select: {
+        id: true,
+        userId: true,
+        businessName: true,
+        businessLogo: true,
+        publicSlug: true,
+        cancellationPolicy: true,
+      },
+    });
+    const byUser = new Map(vendors.map((v) => [v.userId, v]));
+
+    const results = vessels.map(({ userId, charterRates, ...vessel }) => {
+      const vendor = byUser.get(userId) || null;
+
+      // Exact island pair only. Charter pricing is point to point, so a rate
+      // for a different pair tells us nothing about this trip.
+      const rate =
+        from && to
+          ? charterRates.find((r) => r.fromIsland === from && r.toIsland === to)
+          : null;
+
+      const livePricing =
+        vessel.charterPricingMode === 'LIVE' &&
+        rate &&
+        !rate.quoteOnly &&
+        (rate.priceMvr != null || rate.priceUsd != null);
+
+      return {
+        ...vessel,
+        vendor: vendor ? { ...vendor, userId: undefined } : null,
+        pricing: livePricing
+          ? {
+              mode: 'LIVE',
+              priceMvr: rate.priceMvr,
+              priceUsd: rate.priceUsd,
+              instantBooking: !!vessel.charterInstantBooking,
+            }
+          : { mode: 'QUOTE' },
+      };
+    });
+
+    // Priced options first, then by rating.
+    results.sort((a, b) => {
+      const rank = (r) => (r.pricing.mode === 'LIVE' ? 0 : 1);
+      if (rank(a) !== rank(b)) return rank(a) - rank(b);
+      return Number(b.vehicleRating || 0) - Number(a.vehicleRating || 0);
+    });
+
+    return res.json({
+      success: true,
+      message: 'Charter vessels retrieved',
+      data: { vessels: results, count: results.length },
+    });
+  } catch (error) {
+    console.error('searchCharter error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error searching charter vessels',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getCities,
   searchRoutes,
   getVehiclesByRouteId,
+  searchCharter,
 };

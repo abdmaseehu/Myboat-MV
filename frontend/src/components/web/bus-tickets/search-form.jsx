@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import api from "@/lib/axios";
+import { IslandSingleSelect } from "@/components/common/island-select";
 import { toast } from "sonner";
 
 const TABS = [
@@ -63,6 +64,10 @@ export default function SearchForm({
     destinationCity: defaultValues.to || "",
     routeId: defaultValues.routeId || "",
   });
+  // Charter and logistics aren't limited to islands that already have a ferry
+  // route, so they keep their own free island selection.
+  const [charterFrom, setCharterFrom] = useState(defaultValues.from || "");
+  const [charterTo, setCharterTo] = useState(defaultValues.to || "");
 
   const sourceCities = [...new Set(routes.map((r) => r.sourceCity))].sort();
   const destinationCities = routes
@@ -94,6 +99,19 @@ export default function SearchForm({
   };
 
   const handleSearch = async () => {
+    if (tab === "charter") {
+      if (!charterFrom || !charterTo || !date) {
+        toast.error("Please choose where you're sailing from, to, and when");
+        return;
+      }
+      const url =
+        `/charter/search?from=${encodeURIComponent(charterFrom)}` +
+        `&to=${encodeURIComponent(charterTo)}` +
+        `&date=${format(date, "yyyy-MM-dd")}&passengers=${passengers}`;
+      router.push(url);
+      if (onClose) onClose();
+      return;
+    }
     if (tab !== "ferry") {
       router.push(TABS.find((t) => t.id === tab).href);
       return;
@@ -270,16 +288,87 @@ export default function SearchForm({
             </Button>
           </div>
         </>
+      ) : tab === "charter" ? (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+            <FieldWrap label="From" icon={MapPin}>
+              <IslandSingleSelect
+                value={charterFrom}
+                onChange={setCharterFrom}
+                placeholder="Departure island"
+              />
+            </FieldWrap>
+
+            <FieldWrap label="To" icon={MapPin}>
+              <IslandSingleSelect
+                value={charterTo}
+                onChange={setCharterTo}
+                placeholder="Destination island"
+              />
+            </FieldWrap>
+
+            <FieldWrap label="Date" icon={CalendarIcon}>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(inputClass, "justify-start font-medium")}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4 text-lagoon" />
+                    {date ? format(date, "dd MMM yyyy") : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={date}
+                    onSelect={setDate}
+                    disabled={(d) =>
+                      d < new Date(new Date().setHours(0, 0, 0, 0))
+                    }
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </FieldWrap>
+
+            <FieldWrap label="Passengers" icon={Users}>
+              <Select
+                value={String(passengers)}
+                onValueChange={(v) => setPassengers(Number(v))}
+              >
+                <SelectTrigger className={inputClass}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  {Array.from({ length: 50 }, (_, i) => i + 1).map((n) => (
+                    <SelectItem key={n} value={String(n)}>
+                      {n} {n === 1 ? "passenger" : "passengers"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FieldWrap>
+          </div>
+
+          <div className="mt-5 md:mt-6 flex md:justify-end">
+            <Button
+              onClick={handleSearch}
+              className="w-full md:w-auto md:min-w-[220px] h-14 bg-coral hover:bg-coral-soft text-white rounded-full shadow-coral text-base font-medium tracking-wide"
+            >
+              Search charters <ArrowRight className="h-4 w-4 ml-1.5" />
+            </Button>
+          </div>
+        </>
       ) : (
         <div className="text-center py-8 md:py-12 space-y-4">
           <Ship className="h-10 w-10 text-lagoon mx-auto" />
           <p className="text-ocean-deep text-lg font-medium">
-            {tab === "charter" ? "Request a private charter" : "Ship cargo across atolls"}
+            Ship cargo across atolls
           </p>
           <p className="text-muted-foreground text-sm max-w-md mx-auto">
-            {tab === "charter"
-              ? "Have a boat all to yourself. Verified operators respond within hours."
-              : "Bulk goods, supplies, and equipment delivered to any inhabited island."}
+            Bulk goods, supplies, and equipment delivered to any inhabited
+            island.
           </p>
           <Button
             onClick={handleSearch}
