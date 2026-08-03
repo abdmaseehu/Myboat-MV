@@ -66,6 +66,8 @@ export default function LogisticsPage() {
   const [operators, setOperators] = useState([]);
   // "" = broadcast to every operator (the recommended default)
   const [vendorId, setVendorId] = useState("");
+  // "Request Boat MV": goes to Myboat staff, not the operator broadcast.
+  const [adminDirect, setAdminDirect] = useState(false);
 
   const {
     register,
@@ -104,6 +106,7 @@ export default function LogisticsPage() {
   // vendor, which the submit handler already treats as a broadcast request.
   useEffect(() => {
     const qs = new URLSearchParams(window.location.search);
+    if (qs.get("adminDirect") === "1") setAdminDirect(true);
     const from = qs.get("from");
     const to = qs.get("to");
     const date = qs.get("date");
@@ -165,7 +168,8 @@ export default function LogisticsPage() {
         guestPhone: values.guestPhone || null,
         specialRequirements: values.specialRequirements || null,
         // "" -> null = broadcast to all operators
-        vendorId: vendorId || null,
+        vendorId: adminDirect ? null : vendorId || null,
+        adminDirect,
       };
       await api.post("/logistics-requests", payload);
       setSuccess(true);
@@ -355,6 +359,20 @@ export default function LogisticsPage() {
                     </Field>
                   </FormSection>
 
+                  {adminDirect ? (
+                    <FormSection title="Handled by Myboat" icon={Ship}>
+                      <div className="rounded-2xl border border-lagoon/30 bg-foam/50 p-4">
+                        <p className="text-sm text-ocean-deep font-medium">
+                          This request goes straight to the Myboat team.
+                        </p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          We&apos;ll search across every operator in the Maldives
+                          and come back to you with a boat and a price. No
+                          operator is contacted directly.
+                        </p>
+                      </div>
+                    </FormSection>
+                  ) : (
                   <FormSection title="Preferred Operator" icon={Ship}>
                     <Field
                       label="Send this request to"
@@ -378,6 +396,7 @@ export default function LogisticsPage() {
                       </Select>
                     </Field>
                   </FormSection>
+                  )}
 
                   <Button
                     type="submit"

@@ -646,6 +646,9 @@ model CharterRequest {
     quoteValidUntil      DateTime?     @map("quote_valid_until") @db.Date
     bookingId            String?       @map("booking_id")
     status               RequestStatus @default(PENDING)
+    // Sent to Myboat staff to source a boat, rather than broadcast to
+    // operators. Operators must not see these in their request pool.
+    adminDirect          Boolean       @default(false) @map("admin_direct")
     isManual             Boolean?      @default(false) @map("is_manual")
     vesselId             String?       @map("vessel_id")
     captainPhone         String?       @map("captain_phone")
@@ -695,6 +698,9 @@ model LogisticsRequest {
     quoteValidUntil      DateTime?     @map("quote_valid_until") @db.Date
     bookingId            String?       @map("booking_id")
     status               RequestStatus @default(PENDING)
+    // Sent to Myboat staff to source a boat, rather than broadcast to
+    // operators. Operators must not see these in their request pool.
+    adminDirect          Boolean       @default(false) @map("admin_direct")
     isManual             Boolean?      @default(false) @map("is_manual")
     vesselId             String?       @map("vessel_id")
     paymentMethod        String?       @default("CASH") @map("payment_method") @db.VarChar(30)

@@ -175,6 +175,8 @@ export function RequestBoatCard({ trip }) {
     to: trip.to || "",
     date: trip.date || "",
     passengers: String(trip.passengers || 1),
+    // Routes the request to Myboat staff instead of the operator broadcast.
+    adminDirect: "1",
   });
 
   return (

@@ -1,5 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
-const { notify, getVendorUserId } = require('../../utils/notify');
+const { notify, getVendorUserId, notifyAdmins } = require('../../utils/notify');
 const prisma = new PrismaClient();
 
 const getVendorForUser = async (userId) => {
@@ -29,7 +29,12 @@ const getMyRequests = async (req, res) => {
           .status(400)
           .json({ success: false, message: 'Vendor profile not found for user' });
       }
-      where.OR = [{ vendorId: vendor.id }, { vendorId: null }];
+      // vendorId: null is the broadcast pool; adminDirect requests are for
+      // Myboat staff and must not appear there.
+      where.OR = [
+        { vendorId: vendor.id },
+        { vendorId: null, adminDirect: false },
+      ];
     } else {
       where.userId = req.user.id;
     }
@@ -54,7 +59,7 @@ const getMyRequests = async (req, res) => {
       where,
       orderBy: { createdAt: 'desc' },
       include: {
-        vessel: { select: { id: true, name: true } },
+        vessel: { select: { id: true, vehicleName: true, vehicleNumber: true } },
         vendor: { select: { id: true, businessName: true } },
       },
     });
@@ -78,7 +83,7 @@ const getRequestsIRequested = async (req, res) => {
       where,
       orderBy: { createdAt: 'desc' },
       include: {
-        vessel: { select: { id: true, name: true } },
+        vessel: { select: { id: true, vehicleName: true, vehicleNumber: true } },
         vendor: { select: { id: true, businessName: true, phone: true, email: true } },
       },
     });
@@ -97,7 +102,7 @@ const getRequestById = async (req, res) => {
     const request = await prisma.logisticsRequest.findUnique({
       where: { id },
       include: {
-        vessel: { select: { id: true, name: true } },
+        vessel: { select: { id: true, vehicleName: true, vehicleNumber: true } },
         vendor: { select: { id: true, businessName: true } },
       },
     });
@@ -117,6 +122,8 @@ const createRequest = async (req, res) => {
 
     let vendorId = body.vendorId || null;
     let isManual = !!body.isManual;
+    // Aimed at Myboat staff: never attach an operator.
+    if (!isOperator && body.adminDirect) vendorId = null;
     let status = body.status || 'PENDING';
 
     if (isOperator) {
@@ -147,6 +154,8 @@ const createRequest = async (req, res) => {
       specialRequirements: body.specialRequirements || null,
       status,
       isManual,
+      // Customer-settable: it only decides who sees the request.
+      adminDirect: !isOperator && !!body.adminDirect,
       vesselId: body.vesselId || null,
       paymentMethod: body.paymentMethod || 'CASH',
       operatorNotes: body.operatorNotes || null,
@@ -159,6 +168,19 @@ const createRequest = async (req, res) => {
     }
 
     const created = await prisma.logisticsRequest.create({ data });
+
+    // Direct request to Myboat: tell every admin, since there is no operator
+    // to route it to.
+    if (created.adminDirect) {
+      await notifyAdmins(prisma, {
+        type: 'REQUEST_RECEIVED',
+        title: `Cargo boat request: ${routeLabel(created)}`,
+        body: `${created.cargoType || 'Cargo'} on ${new Date(created.tripDate).toISOString().slice(0, 10)}. No operator selected - Myboat needs to source a boat.`,
+        link: '/admin/direct-requests',
+        entityType: 'LOGISTICS_REQUEST',
+        entityId: created.id,
+      });
+    }
 
     // A customer targeting a specific operator -> tell that operator.
     if (!isOperator && vendorId) {
@@ -502,7 +524,7 @@ const getAllRequests = async (req, res) => {
       orderBy: { createdAt: 'desc' },
       include: {
         vendor: { select: { id: true, businessName: true } },
-        vessel: { select: { id: true, name: true } },
+        vessel: { select: { id: true, vehicleName: true, vehicleNumber: true } },
         user: { select: { id: true, email: true, firstName: true, lastName: true } },
       },
     });

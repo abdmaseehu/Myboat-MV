@@ -231,7 +231,12 @@ export function RequestCargoBoatCard({ trip }) {
               asChild
               className="rounded-full bg-lagoon text-white hover:bg-lagoon/90"
             >
-              <Link href={`/logistics?${tripQuery(trip).toString()}`}>
+              <Link
+                href={`/logistics?${tripQuery(trip, {
+                  // Routes to Myboat staff rather than the operator broadcast.
+                  adminDirect: "1",
+                }).toString()}`}
+              >
                 Request a boat
                 <ArrowRight className="ml-1.5 h-4 w-4" />
               </Link>

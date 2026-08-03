@@ -30,6 +30,7 @@ import {
   UserCog,
   Tags,
   Code2,
+  Search,
   DollarSign,
   Database,
   Globe,
@@ -209,6 +210,12 @@ const adminRoutes = [
   {
     group: "Oversight",
     items: [
+      {
+        label: "Direct Requests",
+        icon: Search,
+        href: "/admin/direct-requests",
+        color: "text-sky-500",
+      },
       {
         label: "All Charter Requests",
         icon: Anchor,

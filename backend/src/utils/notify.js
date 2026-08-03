@@ -55,4 +55,28 @@ async function getVendorUserId(prisma, vendorId) {
   }
 }
 
-module.exports = { notify, getVendorUserId };
+/**
+ * Notify every active administrator.
+ *
+ * Used for requests aimed at Myboat staff rather than a specific operator —
+ * there is no single "admin user", so all of them are told.
+ *
+ * Best-effort like notify(): never throws, returns how many were created.
+ */
+async function notifyAdmins(prisma, payload = {}) {
+  try {
+    const admins = await prisma.user.findMany({
+      where: { role: 'ADMIN', active: true },
+      select: { id: true },
+    });
+    const sent = await Promise.all(
+      admins.map((a) => notify(prisma, { ...payload, userId: a.id }))
+    );
+    return sent.filter(Boolean).length;
+  } catch (error) {
+    console.error('[notify] failed to notify admins:', error?.message || error);
+    return 0;
+  }
+}
+
+module.exports = { notify, getVendorUserId, notifyAdmins };
