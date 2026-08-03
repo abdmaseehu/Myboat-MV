@@ -11,6 +11,8 @@ import {
   ArrowRight,
   Users,
   ArrowRightLeft,
+  Package,
+  Weight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -34,7 +36,9 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import api from "@/lib/axios";
+import { Input } from "@/components/ui/input";
 import { IslandSingleSelect } from "@/components/common/island-select";
+import { CARGO_TYPES } from "@/lib/cargo-types";
 import { toast } from "sonner";
 
 const TABS = [
@@ -68,6 +72,8 @@ export default function SearchForm({
   // route, so they keep their own free island selection.
   const [charterFrom, setCharterFrom] = useState(defaultValues.from || "");
   const [charterTo, setCharterTo] = useState(defaultValues.to || "");
+  const [cargoType, setCargoType] = useState(defaultValues.cargoType || "");
+  const [tons, setTons] = useState(defaultValues.tons || "");
 
   const sourceCities = [...new Set(routes.map((r) => r.sourceCity))].sort();
   const destinationCities = routes
@@ -109,6 +115,22 @@ export default function SearchForm({
         `&to=${encodeURIComponent(charterTo)}` +
         `&date=${format(date, "yyyy-MM-dd")}&passengers=${passengers}`;
       router.push(url);
+      if (onClose) onClose();
+      return;
+    }
+    if (tab === "logistics") {
+      if (!charterFrom || !charterTo || !date) {
+        toast.error("Please choose pickup, delivery and date");
+        return;
+      }
+      const qs = new URLSearchParams({
+        from: charterFrom,
+        to: charterTo,
+        date: format(date, "yyyy-MM-dd"),
+      });
+      if (cargoType) qs.set("cargoType", cargoType);
+      if (tons) qs.set("tons", tons);
+      router.push(`/logistics/search?${qs.toString()}`);
       if (onClose) onClose();
       return;
     }
@@ -361,22 +383,87 @@ export default function SearchForm({
           </div>
         </>
       ) : (
-        <div className="text-center py-8 md:py-12 space-y-4">
-          <Ship className="h-10 w-10 text-lagoon mx-auto" />
-          <p className="text-ocean-deep text-lg font-medium">
-            Ship cargo across atolls
-          </p>
-          <p className="text-muted-foreground text-sm max-w-md mx-auto">
-            Bulk goods, supplies, and equipment delivered to any inhabited
-            island.
-          </p>
-          <Button
-            onClick={handleSearch}
-            className="bg-coral hover:bg-coral-soft text-white rounded-full h-12 px-8 shadow-coral"
-          >
-            Continue <ArrowRight className="h-4 w-4 ml-1.5" />
-          </Button>
-        </div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+            <FieldWrap label="From" icon={MapPin}>
+              <IslandSingleSelect
+                value={charterFrom}
+                onChange={setCharterFrom}
+                placeholder="Pickup island"
+              />
+            </FieldWrap>
+
+            <FieldWrap label="To" icon={MapPin}>
+              <IslandSingleSelect
+                value={charterTo}
+                onChange={setCharterTo}
+                placeholder="Delivery island"
+              />
+            </FieldWrap>
+
+            <FieldWrap label="Date" icon={CalendarIcon}>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(inputClass, "justify-start font-medium")}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4 text-lagoon" />
+                    {date ? format(date, "dd MMM yyyy") : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={date}
+                    onSelect={setDate}
+                    disabled={(d) =>
+                      d < new Date(new Date().setHours(0, 0, 0, 0))
+                    }
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </FieldWrap>
+
+            <FieldWrap label="Cargo Type" icon={Package}>
+              <Select value={cargoType} onValueChange={setCargoType}>
+                <SelectTrigger className={inputClass}>
+                  <SelectValue placeholder="Any cargo" />
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  {CARGO_TYPES.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FieldWrap>
+
+            <FieldWrap label="Tons" icon={Weight}>
+              <Input
+                type="number"
+                min={0}
+                step="0.1"
+                inputMode="decimal"
+                placeholder="e.g. 5"
+                value={tons}
+                onChange={(e) => setTons(e.target.value)}
+                className={inputClass}
+              />
+            </FieldWrap>
+          </div>
+
+          <div className="mt-5 md:mt-6 flex md:justify-end">
+            <Button
+              onClick={handleSearch}
+              className="w-full md:w-auto md:min-w-[220px] h-14 bg-coral hover:bg-coral-soft text-white rounded-full shadow-coral text-base font-medium tracking-wide"
+            >
+              Search cargo boats <ArrowRight className="h-4 w-4 ml-1.5" />
+            </Button>
+          </div>
+        </>
       )}
     </div>
   );

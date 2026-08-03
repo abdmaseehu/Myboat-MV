@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { IslandSingleSelect, useAtolls } from "@/components/common/island-select";
 import { Anchor, Package, Plus, Ship, X } from "lucide-react";
+import { CARGO_TYPES } from "@/lib/cargo-types";
 
 export const SERVICE_OPTIONS = [
   {
@@ -38,18 +39,8 @@ export const SERVICE_OPTIONS = [
   },
 ];
 
-export const CARGO_TYPES = [
-  "General Cargo",
-  "Construction Material",
-  "Food & Perishables",
-  "Furniture",
-  "Vehicles",
-  "Fuel",
-  "Livestock",
-  "Machinery",
-  "Refrigerated",
-  "Hazardous",
-];
+// Single source of truth, shared with the customer logistics search.
+export { CARGO_TYPES };
 
 export const emptyCharterRate = () => ({
   fromIsland: "",

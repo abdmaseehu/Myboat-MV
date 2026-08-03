@@ -366,9 +366,164 @@ const searchCharter = async (req, res) => {
   }
 };
 
+/* -------------------------------------------------------------------------- */
+/*  Logistics search                                                           */
+/* -------------------------------------------------------------------------- */
+
+const LOGISTICS_VESSEL_SELECT = {
+  id: true,
+  vehicleName: true,
+  vehicleNumber: true,
+  vehicleImage: true,
+  images: true,
+  vehicleType: true,
+  baseIsland: true,
+  totalSeats: true,
+  vehicleRating: true,
+  capacityTons: true,
+  cargoTypes: true,
+  userId: true,
+  logisticsRates: true,
+};
+
+/**
+ * Pick the rate that applies to this trip, most specific first.
+ *
+ * A route rate beats an atoll rate, which beats a nationwide one — an operator
+ * who priced a particular leg meant that price to win.
+ */
+const pickLogisticsRate = (rates, from, to, atollCodes) => {
+  const exact = rates.find(
+    (r) => r.coverage === 'ROUTE' && r.fromIsland === from && r.toIsland === to
+  );
+  if (exact) return exact;
+
+  const atoll = rates.find(
+    (r) => r.coverage === 'ATOLL' && r.atollCode && atollCodes.has(r.atollCode)
+  );
+  if (atoll) return atoll;
+
+  return rates.find((r) => r.coverage === 'NATIONWIDE') || null;
+};
+
+/**
+ * GET /public/logistics-search?from&to&date&cargoType&tons
+ *
+ * Like charter search, an unpriced trip is a quote rather than a dead end.
+ * Capacity and cargo type do filter, because a boat that physically cannot
+ * carry the load is not a result.
+ */
+const searchLogistics = async (req, res) => {
+  try {
+    const { from = '', to = '', cargoType = '' } = req.query;
+    const tons = Number(req.query.tons) > 0 ? Number(req.query.tons) : null;
+
+    const vessels = await prisma.vehicle.findMany({
+      where: {
+        serviceTypes: { array_contains: ['LOGISTICS'] },
+        vehicleStatus: { in: ['AVAILABLE', 'BOOKED'] },
+      },
+      select: LOGISTICS_VESSEL_SELECT,
+      orderBy: { vehicleRating: 'desc' },
+    });
+
+    // Which atolls this trip touches, so ATOLL rates can be matched.
+    const atollCodes = new Set();
+    const labels = [from, to].filter(Boolean);
+    if (labels.length) {
+      const islands = await prisma.island.findMany({
+        where: { label: { in: labels } },
+        select: { atollCode: true },
+      });
+      islands.forEach((i) => atollCodes.add(i.atollCode));
+    }
+
+    const vendors = await prisma.vendor.findMany({
+      where: { userId: { in: [...new Set(vessels.map((v) => v.userId).filter(Boolean))] } },
+      select: {
+        id: true,
+        userId: true,
+        businessName: true,
+        businessLogo: true,
+        publicSlug: true,
+      },
+    });
+    const byUser = new Map(vendors.map((v) => [v.userId, v]));
+
+    const results = [];
+
+    for (const { userId, logisticsRates, ...vessel } of vessels) {
+      // A boat that can't take the load isn't an option.
+      if (tons && vessel.capacityTons != null && Number(vessel.capacityTons) < tons) {
+        continue;
+      }
+      // An empty cargo list means "no restriction stated"; a populated one filters.
+      const accepted = Array.isArray(vessel.cargoTypes) ? vessel.cargoTypes : [];
+      if (cargoType && accepted.length && !accepted.includes(cargoType)) {
+        continue;
+      }
+
+      const rate = pickLogisticsRate(logisticsRates, from, to, atollCodes);
+      const priced =
+        rate && !rate.quoteOnly && (rate.priceMvr != null || rate.priceUsd != null);
+
+      let pricing = { mode: 'QUOTE' };
+      if (priced) {
+        const perTon = rate.basis === 'PER_TON';
+        // A per-ton rate needs a weight to become a total; without one we show
+        // the unit price instead of inventing a number.
+        const multiplier = perTon ? tons : 1;
+        pricing = {
+          mode: 'LIVE',
+          basis: rate.basis,
+          coverage: rate.coverage,
+          tons: tons,
+          unitMvr: rate.priceMvr,
+          unitUsd: rate.priceUsd,
+          totalMvr:
+            rate.priceMvr != null && multiplier != null
+              ? Number(rate.priceMvr) * multiplier
+              : null,
+          totalUsd:
+            rate.priceUsd != null && multiplier != null
+              ? Number(rate.priceUsd) * multiplier
+              : null,
+        };
+      }
+
+      const vendor = byUser.get(userId) || null;
+      results.push({
+        ...vessel,
+        vendor: vendor ? { ...vendor, userId: undefined } : null,
+        pricing,
+      });
+    }
+
+    results.sort((a, b) => {
+      const rank = (r) => (r.pricing.mode === 'LIVE' ? 0 : 1);
+      if (rank(a) !== rank(b)) return rank(a) - rank(b);
+      return Number(b.vehicleRating || 0) - Number(a.vehicleRating || 0);
+    });
+
+    return res.json({
+      success: true,
+      message: 'Logistics vessels retrieved',
+      data: { vessels: results, count: results.length },
+    });
+  } catch (error) {
+    console.error('searchLogistics error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error searching logistics vessels',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getCities,
   searchRoutes,
   getVehiclesByRouteId,
   searchCharter,
+  searchLogistics,
 };

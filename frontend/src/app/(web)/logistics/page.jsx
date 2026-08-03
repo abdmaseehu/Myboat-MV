@@ -100,6 +100,23 @@ export default function LogisticsPage() {
     }
   }, [user, setValue]);
 
+  // Prefill from a logistics search. "Request Boat MV" links here with no
+  // vendor, which the submit handler already treats as a broadcast request.
+  useEffect(() => {
+    const qs = new URLSearchParams(window.location.search);
+    const from = qs.get("from");
+    const to = qs.get("to");
+    const date = qs.get("date");
+    const cargo = qs.get("cargoType");
+    const tons = Number(qs.get("tons"));
+    if (from) setValue("origin", from);
+    if (to) setValue("destination", to);
+    if (date) setValue("tripDate", date);
+    if (cargo) setValue("cargoType", cargo);
+    // The search asks for tons; this form stores kilograms.
+    if (tons > 0) setValue("weightKg", String(tons * 1000));
+  }, [setValue]);
+
   // Load approved operators + honour ?operator=<publicSlug> deep links.
   useEffect(() => {
     let cancelled = false;
@@ -109,7 +126,10 @@ export default function LogisticsPage() {
         const list = Array.isArray(res?.data?.data) ? res.data.data : [];
         if (cancelled) return;
         setOperators(list);
-        const slug = new URLSearchParams(window.location.search).get("operator");
+        const qs0 = new URLSearchParams(window.location.search);
+        const vendor = qs0.get("vendor");
+        if (vendor && list.some((o) => o.id === vendor)) setVendorId(vendor);
+        const slug = qs0.get("operator");
         if (slug) {
           const match = list.find(
             (o) => (o.publicSlug || "").toLowerCase() === slug.toLowerCase()
