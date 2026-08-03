@@ -105,9 +105,10 @@ export default function LogisticsRequestsPage() {
   });
   const [createSubmitting, setCreateSubmitting] = useState(false);
 
-  const hasSubscription =
-    user?.charterProSubscribedUntil &&
-    new Date(user.charterProSubscribedUntil) > new Date();
+  // Customer contact details belong to Myboat, not the operators quoting on
+  // the trip. The API redacts them for anyone who isn't an admin; this only
+  // decides what the dialog says.
+  const canSeeContact = user?.role === "ADMIN";
 
   const fetchRequests = async () => {
     try {
@@ -388,7 +389,7 @@ export default function LogisticsRequestsPage() {
               )}
               <div className="border-t pt-3">
                 <div className="text-sm font-semibold mb-2">Contact Information</div>
-                {hasSubscription ? (
+                {canSeeContact ? (
                   <div className="space-y-1 text-sm">
                     <div>
                       <span className="text-muted-foreground">Name: </span>
@@ -407,15 +408,9 @@ export default function LogisticsRequestsPage() {
                   <div className="rounded-md border border-dashed p-4 text-center space-y-2">
                     <Lock className="h-5 w-5 mx-auto text-muted-foreground" />
                     <p className="text-xs text-muted-foreground">
-                      Contact information hidden — Subscribe to view customer contact
-                      details
+                      Customer contact details are held by Myboat. Send your
+                      quote and we&apos;ll put the customer in touch.
                     </p>
-                    <Button
-                      size="sm"
-                      className="bg-sky-500 hover:bg-sky-600 text-white"
-                    >
-                      Subscribe Now
-                    </Button>
                   </div>
                 )}
               </div>

@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const { notify, getVendorUserId, notifyAdmins } = require('../../utils/notify');
+const { redactForViewer, redactListForViewer } = require('../../utils/redact');
 const prisma = new PrismaClient();
 
 // Helper: get vendor for the authenticated user (VENDOR role)
@@ -68,7 +69,10 @@ const getMyRequests = async (req, res) => {
       },
     });
 
-    return res.json({ success: true, data: requests });
+    return res.json({
+      success: true,
+      data: redactListForViewer(requests, req.user),
+    });
   } catch (error) {
     console.error('getMyRequests charter error', error);
     return res
@@ -102,7 +106,10 @@ const getRequestsIRequested = async (req, res) => {
         },
       },
     });
-    return res.json({ success: true, data: requests });
+    return res.json({
+      success: true,
+      data: redactListForViewer(requests, req.user),
+    });
   } catch (error) {
     console.error('getRequestsIRequested charter error', error);
     return res
@@ -125,7 +132,10 @@ const getRequestById = async (req, res) => {
     if (!request) {
       return res.status(404).json({ success: false, message: 'Request not found' });
     }
-    return res.json({ success: true, data: request });
+    return res.json({
+      success: true,
+      data: redactForViewer(request, req.user),
+    });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -576,7 +586,10 @@ const getAllRequests = async (req, res) => {
         user: { select: { id: true, email: true, firstName: true, lastName: true } },
       },
     });
-    return res.json({ success: true, data: requests });
+    return res.json({
+      success: true,
+      data: redactListForViewer(requests, req.user),
+    });
   } catch (error) {
     console.error('getAllRequests charter error', error);
     return res.status(500).json({ success: false, message: error.message });
