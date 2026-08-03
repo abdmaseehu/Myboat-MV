@@ -3,6 +3,58 @@ const { z } = require('zod');
 
 const prisma = new PrismaClient();
 
+const SERVICE_TYPES = ['FERRY', 'PRIVATE_CHARTER', 'LOGISTICS'];
+
+/**
+ * Vessel forms post multipart/form-data, so arrays and objects arrive as JSON
+ * strings. Accept either and always hand back an array.
+ */
+const jsonArray = (itemSchema) =>
+  z
+    .union([
+      z.array(itemSchema),
+      z.string().transform((s) => {
+        if (!s) return [];
+        try {
+          const parsed = JSON.parse(s);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }),
+    ])
+    .optional();
+
+// Blank strings are "not set", not zero — an unpriced currency must stay null
+// so the UI can tell "free" apart from "no price published".
+const money = z
+  .union([
+    z.coerce.number().nonnegative(),
+    z.literal('').transform(() => null),
+    z.null(),
+  ])
+  .optional()
+  .nullable();
+
+const charterRateSchema = z.object({
+  fromIsland: z.string().min(1),
+  toIsland: z.string().min(1),
+  priceMvr: money,
+  priceUsd: money,
+  quoteOnly: z.coerce.boolean().optional().default(false),
+});
+
+const logisticsRateSchema = z.object({
+  coverage: z.enum(['ROUTE', 'ATOLL', 'NATIONWIDE']).default('ROUTE'),
+  fromIsland: z.string().optional().nullable(),
+  toIsland: z.string().optional().nullable(),
+  atollCode: z.string().optional().nullable(),
+  basis: z.enum(['PER_TON', 'FLAT']).default('PER_TON'),
+  priceMvr: money,
+  priceUsd: money,
+  quoteOnly: z.coerce.boolean().optional().default(false),
+});
+
 // Validation schema
 const vehicleSchema = z.object({
   vehicleName: z.string().min(2, 'Vehicle name must be at least 2 characters'),
@@ -68,6 +120,25 @@ const vehicleSchema = z.object({
     .union([z.coerce.number().int().positive(), z.literal('').transform(() => null)])
     .nullable()
     .optional(),
+
+  // ---- which services this vessel is offered for -------------------------
+  serviceTypes: jsonArray(z.enum(SERVICE_TYPES)),
+
+  // ---- private charter ---------------------------------------------------
+  charterPricingMode: z.enum(['LIVE', 'QUOTE']).optional().nullable(),
+  charterInstantBooking: z
+    .union([z.boolean(), z.enum(['true', 'false']).transform((s) => s === 'true')])
+    .optional(),
+
+  // ---- logistics ---------------------------------------------------------
+  cargoTypes: jsonArray(z.string()),
+  capacityTons: money,
+  logisticsCoverage: z.enum(['ROUTE', 'ATOLL', 'NATIONWIDE']).optional().nullable(),
+  logisticsAtolls: jsonArray(z.string()),
+
+  // Rate tables travel with the vessel; handled separately from the row data.
+  charterRates: jsonArray(charterRateSchema),
+  logisticsRates: jsonArray(logisticsRateSchema),
 });
 
 const MAX_VESSEL_IMAGES = 5;
@@ -126,6 +197,8 @@ const getAllVehicles = async (req, res) => {
     const vehicles = await prisma.vehicle.findMany({
       where,
       include: {
+        charterRates: true,
+        logisticsRates: true,
         route: {
           select: {
             id: true,
@@ -208,6 +281,8 @@ const getVehicleById = async (req, res) => {
     const vehicle = await prisma.vehicle.findUnique({
       where: { id },
       include: {
+        charterRates: true,
+        logisticsRates: true,
         route: {
           select: {
             id: true,
@@ -254,6 +329,44 @@ const getVehicleById = async (req, res) => {
 };
 
 // Create vehicle
+/**
+ * Drop rows the operator left blank and collapse a row with no price at all
+ * into quote-only, so the customer is never shown a bare "—" where a price
+ * should be.
+ */
+const cleanCharterRates = (rows) =>
+  rows
+    .filter((r) => r.fromIsland && r.toIsland)
+    .map((r) => ({
+      fromIsland: r.fromIsland,
+      toIsland: r.toIsland,
+      priceMvr: r.priceMvr ?? null,
+      priceUsd: r.priceUsd ?? null,
+      quoteOnly: r.quoteOnly || (r.priceMvr == null && r.priceUsd == null),
+    }));
+
+const cleanLogisticsRates = (rows) =>
+  rows
+    // A ROUTE rate needs both islands; ATOLL needs an atoll. NATIONWIDE needs
+    // neither, so it always survives.
+    .filter((r) =>
+      r.coverage === 'ROUTE'
+        ? r.fromIsland && r.toIsland
+        : r.coverage === 'ATOLL'
+        ? r.atollCode
+        : true
+    )
+    .map((r) => ({
+      coverage: r.coverage,
+      fromIsland: r.coverage === 'ROUTE' ? r.fromIsland : null,
+      toIsland: r.coverage === 'ROUTE' ? r.toIsland : null,
+      atollCode: r.coverage === 'ATOLL' ? r.atollCode : null,
+      basis: r.basis,
+      priceMvr: r.priceMvr ?? null,
+      priceUsd: r.priceUsd ?? null,
+      quoteOnly: r.quoteOnly || (r.priceMvr == null && r.priceUsd == null),
+    }));
+
 const createVehicle = async (req, res) => {
   try {
     // Pre-process the data before validation
@@ -274,7 +387,7 @@ const createVehicle = async (req, res) => {
     };
 
     const validatedData = vehicleSchema.parse(dataToValidate);
-    const { keepImages, ...vesselData } = validatedData;
+    const { keepImages, charterRates, logisticsRates, ...vesselData } = validatedData;
 
     // Up to 5 gallery images; the first doubles as the legacy cover image so
     // existing list/detail views that read `vehicleImage` keep working.
@@ -284,6 +397,12 @@ const createVehicle = async (req, res) => {
     const vehicle = await prisma.vehicle.create({
       data: {
         ...vesselData,
+        charterRates: charterRates?.length
+          ? { create: cleanCharterRates(charterRates) }
+          : undefined,
+        logisticsRates: logisticsRates?.length
+          ? { create: cleanLogisticsRates(logisticsRates) }
+          : undefined,
         userId: req.user.id,
         amenities: validatedData.amenities,
         // startDate is already properly formatted by the schema
@@ -358,7 +477,7 @@ const updateVehicle = async (req, res) => {
       });
     }
     
-    const { keepImages, ...vesselData } = validatedData;
+    const { keepImages, charterRates, logisticsRates, ...vesselData } = validatedData;
 
     // Gallery = images the client kept + any newly uploaded ones. When the
     // client sends no `keepImages` at all we treat it as "leave the gallery
@@ -378,6 +497,14 @@ const updateVehicle = async (req, res) => {
       where: { id },
       data: {
         ...vesselData,
+        // Rate tables are replaced wholesale when the form sends them, and
+        // left untouched when it doesn't (partial updates from other screens).
+        charterRates: charterRates
+          ? { deleteMany: {}, create: cleanCharterRates(charterRates) }
+          : undefined,
+        logisticsRates: logisticsRates
+          ? { deleteMany: {}, create: cleanLogisticsRates(logisticsRates) }
+          : undefined,
         amenities:
           typeof validatedData.amenities === 'string'
             ? JSON.parse(validatedData.amenities)

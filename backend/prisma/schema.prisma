@@ -206,6 +206,18 @@ model Vehicle {
     specification         Json?                   @default("{}")
     termsConditions       String?                 @map("terms_conditions")
     cancellationPolicy    String?                 @map("cancellation_policy")
+    // Which services this vessel is offered for: any of FERRY, PRIVATE_CHARTER,
+    // LOGISTICS. A ferry can also be chartered without being listed twice.
+    serviceTypes          Json?                   @default("[]") @map("service_types")
+    // PRIVATE_CHARTER config. Mode is the vessel-wide default; an individual
+    // rate row can still be quote-only.
+    charterPricingMode    String?                 @default("QUOTE") @map("charter_pricing_mode") @db.VarChar(10)
+    charterInstantBooking Boolean                 @default(false) @map("charter_instant_booking")
+    // LOGISTICS config
+    cargoTypes            Json?                   @default("[]") @map("cargo_types")
+    capacityTons          Decimal?                @map("capacity_tons") @db.Decimal(10, 2)
+    logisticsCoverage     String?                 @map("logistics_coverage") @db.VarChar(12)
+    logisticsAtolls       Json?                   @default("[]") @map("logistics_atolls")
     seatSelectionEnabled  Boolean                 @default(true) @map("seat_selection_enabled")
     // Cap on seats per booking. Null means no artificial cap - the only limit
     // is what the departure still has available.
@@ -236,8 +248,54 @@ model Vehicle {
     DriverVehicleAssigned DriverVehicleAssigned[]
     charterRequests       CharterRequest[]
     logisticsRequests     LogisticsRequest[]
+    charterRates          CharterRate[]
+    logisticsRates        LogisticsRate[]
 
     @@map("vehicles")
+}
+
+/// Per-vessel private-charter price for one island pair. A flat price for the
+/// whole boat; either currency may be left blank, and quoteOnly hides price
+/// entirely so the customer requests a quote instead.
+model CharterRate {
+    id         String   @id @default(cuid())
+    vehicleId  String   @map("vehicle_id")
+    fromIsland String   @map("from_island")
+    toIsland   String   @map("to_island")
+    priceMvr   Decimal? @map("price_mvr") @db.Decimal(12, 2)
+    priceUsd   Decimal? @map("price_usd") @db.Decimal(12, 2)
+    quoteOnly  Boolean  @default(false) @map("quote_only")
+    createdAt  DateTime @default(now()) @map("created_at")
+    updatedAt  DateTime @updatedAt @map("updated_at")
+    vehicle    Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+    @@unique([vehicleId, fromIsland, toIsland])
+    @@index([fromIsland, toIsland])
+    @@map("charter_rates")
+}
+
+/// Per-vessel logistics price. Coverage decides how it is matched:
+/// ROUTE uses the island pair, ATOLL matches any trip inside atollCode,
+/// NATIONWIDE matches anywhere. Basis decides how it is charged:
+/// PER_TON multiplies by the cargo weight, FLAT is a single boat price.
+model LogisticsRate {
+    id         String   @id @default(cuid())
+    vehicleId  String   @map("vehicle_id")
+    coverage   String   @default("ROUTE") @db.VarChar(12)
+    fromIsland String?  @map("from_island")
+    toIsland   String?  @map("to_island")
+    atollCode  String?  @map("atoll_code") @db.VarChar(6)
+    basis      String   @default("PER_TON") @db.VarChar(10)
+    priceMvr   Decimal? @map("price_mvr") @db.Decimal(12, 2)
+    priceUsd   Decimal? @map("price_usd") @db.Decimal(12, 2)
+    quoteOnly  Boolean  @default(false) @map("quote_only")
+    createdAt  DateTime @default(now()) @map("created_at")
+    updatedAt  DateTime @updatedAt @map("updated_at")
+    vehicle    Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+    @@index([vehicleId, coverage])
+    @@index([fromIsland, toIsland])
+    @@map("logistics_rates")
 }
 
 model Route {

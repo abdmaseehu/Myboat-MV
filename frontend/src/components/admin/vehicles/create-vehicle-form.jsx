@@ -59,6 +59,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { BreadcrumbNav } from "@/components/ui/breadcrumb";
+import VesselServicesFields from "./vessel-services-fields";
 
 const vehicleSchema = z.object({
   vehicleName: z.string().min(2, "Vessel name must be at least 2 characters"),
@@ -104,6 +105,15 @@ export default function CreateVehicleForm() {
   const [preview, setPreview] = useState(null);
   const [amenitiesDialogOpen, setAmenitiesDialogOpen] = useState(false);
   const [selectedAmenities, setSelectedAmenities] = useState([]);
+  // Service configuration lives outside react-hook-form: these are nested
+  // arrays that are simpler to manage directly and serialise on submit.
+  const [serviceTypes, setServiceTypes] = useState(["FERRY"]);
+  const [charterPricingMode, setCharterPricingMode] = useState("QUOTE");
+  const [charterInstantBooking, setCharterInstantBooking] = useState(false);
+  const [charterRates, setCharterRates] = useState([]);
+  const [capacityTons, setCapacityTons] = useState("");
+  const [cargoTypes, setCargoTypes] = useState([]);
+  const [logisticsRates, setLogisticsRates] = useState([]);
   const [specOpen, setSpecOpen] = useState(false);
   const [imageFiles, setImageFiles] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
@@ -251,6 +261,22 @@ export default function CreateVehicleForm() {
 
       // Append formatted amenities
       formData.append("amenities", JSON.stringify(formattedAmenities));
+
+      // Service config + rate tables. Sent even when empty so the API can
+      // clear a table the operator emptied.
+      formData.append("serviceTypes", JSON.stringify(serviceTypes));
+      formData.append("charterPricingMode", charterPricingMode);
+      formData.append("charterInstantBooking", String(charterInstantBooking));
+      formData.append(
+        "charterRates",
+        JSON.stringify(serviceTypes.includes("PRIVATE_CHARTER") ? charterRates : [])
+      );
+      if (capacityTons !== "") formData.append("capacityTons", capacityTons);
+      formData.append("cargoTypes", JSON.stringify(cargoTypes));
+      formData.append(
+        "logisticsRates",
+        JSON.stringify(serviceTypes.includes("LOGISTICS") ? logisticsRates : [])
+      );
 
       // Append specification as JSON string
       formData.append("specification", JSON.stringify(specification));
@@ -1074,6 +1100,24 @@ export default function CreateVehicleForm() {
                 </div>
               )}
             </div>
+
+            <VesselServicesFields
+              serviceTypes={serviceTypes}
+              onServiceTypesChange={setServiceTypes}
+              charterPricingMode={charterPricingMode}
+              onCharterPricingModeChange={setCharterPricingMode}
+              charterInstantBooking={charterInstantBooking}
+              onCharterInstantBookingChange={setCharterInstantBooking}
+              charterRates={charterRates}
+              onCharterRatesChange={setCharterRates}
+              capacityTons={capacityTons}
+              onCapacityTonsChange={setCapacityTons}
+              cargoTypes={cargoTypes}
+              onCargoTypesChange={setCargoTypes}
+              logisticsRates={logisticsRates}
+              onLogisticsRatesChange={setLogisticsRates}
+              disabled={loading}
+            />
 
             {/* Submit and Cancel Buttons */}
             <div className="flex items-center gap-4 pt-6 border-t">

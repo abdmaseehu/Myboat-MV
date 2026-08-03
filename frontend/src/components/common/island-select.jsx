@@ -295,6 +295,25 @@ export function IslandMultiSelect({
 /*  IslandSingleSelect                                                        */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Distinct atolls, derived from the same cached island list so picking an
+ * atoll costs no extra request.
+ * @returns {{atolls: {code: string, name: string}[], loading: boolean}}
+ */
+export function useAtolls() {
+  const { islands, loading } = useIslands();
+  const atolls = useMemo(() => {
+    const seen = new Map();
+    islands.forEach((i) => {
+      if (i.atollCode && !seen.has(i.atollCode)) {
+        seen.set(i.atollCode, { code: i.atollCode, name: i.atollName || i.atollCode });
+      }
+    });
+    return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [islands]);
+  return { atolls, loading };
+}
+
 export function IslandSingleSelect({
   value = "",
   onChange,

@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import api from "@/lib/axios";
+import VesselServicesFields from "./vessel-services-fields";
 
 const vehicleSchema = z.object({
   vehicleName: z.string().min(1, "Vessel name is required"),
@@ -60,6 +61,15 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
   const [routes, setRoutes] = useState([]);
   const [layouts, setLayouts] = useState([]);
   const [loadingDropdowns, setLoadingDropdowns] = useState(true);
+  // Service configuration (see create form): nested arrays kept outside
+  // react-hook-form and serialised on submit.
+  const [serviceTypes, setServiceTypes] = useState(["FERRY"]);
+  const [charterPricingMode, setCharterPricingMode] = useState("QUOTE");
+  const [charterInstantBooking, setCharterInstantBooking] = useState(false);
+  const [charterRates, setCharterRates] = useState([]);
+  const [capacityTons, setCapacityTons] = useState("");
+  const [cargoTypes, setCargoTypes] = useState([]);
+  const [logisticsRates, setLogisticsRates] = useState([]);
 
   const form = useForm({
     resolver: zodResolver(vehicleSchema),
@@ -108,6 +118,38 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
         maxSeatsPerBooking: vehicle.maxSeatsPerBooking ?? null,
         cancellationPolicy: vehicle.cancellationPolicy || "",
       });
+
+      // Service config lives outside the form, so hydrate it here too.
+      const types = Array.isArray(vehicle.serviceTypes) && vehicle.serviceTypes.length
+        ? vehicle.serviceTypes
+        : ["FERRY"];
+      setServiceTypes(types);
+      setCharterPricingMode(vehicle.charterPricingMode || "QUOTE");
+      setCharterInstantBooking(!!vehicle.charterInstantBooking);
+      setCapacityTons(vehicle.capacityTons != null ? String(vehicle.capacityTons) : "");
+      setCargoTypes(Array.isArray(vehicle.cargoTypes) ? vehicle.cargoTypes : []);
+      // Decimals arrive as strings; the inputs are controlled so normalise to "".
+      setCharterRates(
+        (vehicle.charterRates || []).map((r) => ({
+          fromIsland: r.fromIsland || "",
+          toIsland: r.toIsland || "",
+          priceMvr: r.priceMvr != null ? String(r.priceMvr) : "",
+          priceUsd: r.priceUsd != null ? String(r.priceUsd) : "",
+          quoteOnly: !!r.quoteOnly,
+        }))
+      );
+      setLogisticsRates(
+        (vehicle.logisticsRates || []).map((r) => ({
+          coverage: r.coverage || "ROUTE",
+          fromIsland: r.fromIsland || "",
+          toIsland: r.toIsland || "",
+          atollCode: r.atollCode || "",
+          basis: r.basis || "PER_TON",
+          priceMvr: r.priceMvr != null ? String(r.priceMvr) : "",
+          priceUsd: r.priceUsd != null ? String(r.priceUsd) : "",
+          quoteOnly: !!r.quoteOnly,
+        }))
+      );
     }
   }, [vehicle, form]);
 
@@ -173,6 +215,21 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
 
       formData.append("specification", JSON.stringify(specification));
 
+      // Service config + rate tables (see create form).
+      formData.append("serviceTypes", JSON.stringify(serviceTypes));
+      formData.append("charterPricingMode", charterPricingMode);
+      formData.append("charterInstantBooking", String(charterInstantBooking));
+      formData.append(
+        "charterRates",
+        JSON.stringify(serviceTypes.includes("PRIVATE_CHARTER") ? charterRates : [])
+      );
+      formData.append("capacityTons", capacityTons === "" ? "" : capacityTons);
+      formData.append("cargoTypes", JSON.stringify(cargoTypes));
+      formData.append(
+        "logisticsRates",
+        JSON.stringify(serviceTypes.includes("LOGISTICS") ? logisticsRates : [])
+      );
+
       await api.put(`/vehicles/${vehicle.id}`, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
@@ -191,7 +248,8 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      {/* Wider and scrollable: the service rate tables don't fit 500px. */}
+      <DialogContent className="sm:max-w-[760px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Vessel</DialogTitle>
         </DialogHeader>
@@ -610,6 +668,24 @@ export default function EditVehicle({ open, onClose, vehicle, onSuccess }) {
                   </FormControl>
                 </FormItem>
               )}
+            />
+
+            <VesselServicesFields
+              serviceTypes={serviceTypes}
+              onServiceTypesChange={setServiceTypes}
+              charterPricingMode={charterPricingMode}
+              onCharterPricingModeChange={setCharterPricingMode}
+              charterInstantBooking={charterInstantBooking}
+              onCharterInstantBookingChange={setCharterInstantBooking}
+              charterRates={charterRates}
+              onCharterRatesChange={setCharterRates}
+              capacityTons={capacityTons}
+              onCapacityTonsChange={setCapacityTons}
+              cargoTypes={cargoTypes}
+              onCargoTypesChange={setCargoTypes}
+              logisticsRates={logisticsRates}
+              onLogisticsRatesChange={setLogisticsRates}
+              disabled={loading}
             />
 
             {/* Submit Button */}
