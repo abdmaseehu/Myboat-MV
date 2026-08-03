@@ -13,35 +13,49 @@ const jsonArray = (itemSchema) =>
   z
     .union([
       z.array(itemSchema),
-      z.string().transform((s) => {
-        if (!s) return [];
-        try {
-          const parsed = JSON.parse(s);
-          return Array.isArray(parsed) ? parsed : [];
-        } catch {
-          return [];
-        }
-      }),
+      // Parse the JSON first, then run it through the real item schema so a
+      // malformed row is reported rather than silently stored.
+      z
+        .string()
+        .transform((s) => {
+          if (!s) return [];
+          try {
+            const parsed = JSON.parse(s);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        })
+        .pipe(z.array(itemSchema)),
     ])
     .optional();
 
 // Blank strings are "not set", not zero — an unpriced currency must stay null
 // so the UI can tell "free" apart from "no price published".
+// Order matters: z.coerce.number() turns '' into 0, so the empty case must be
+// matched before it ever gets there.
 const money = z
   .union([
-    z.coerce.number().nonnegative(),
     z.literal('').transform(() => null),
     z.null(),
+    z.coerce.number().nonnegative(),
   ])
   .optional()
   .nullable();
+
+// z.coerce.boolean() maps the STRING "false" to true, which would silently
+// flip quote-only on. Match the literal strings explicitly.
+const flag = z
+  .union([z.boolean(), z.enum(['true', 'false']).transform((v) => v === 'true')])
+  .optional()
+  .default(false);
 
 const charterRateSchema = z.object({
   fromIsland: z.string().min(1),
   toIsland: z.string().min(1),
   priceMvr: money,
   priceUsd: money,
-  quoteOnly: z.coerce.boolean().optional().default(false),
+  quoteOnly: flag,
 });
 
 const logisticsRateSchema = z.object({
@@ -52,7 +66,7 @@ const logisticsRateSchema = z.object({
   basis: z.enum(['PER_TON', 'FLAT']).default('PER_TON'),
   priceMvr: money,
   priceUsd: money,
-  quoteOnly: z.coerce.boolean().optional().default(false),
+  quoteOnly: flag,
 });
 
 // Validation schema
@@ -77,8 +91,8 @@ const vehicleSchema = z.object({
     ])
     .optional(),
   vehicleStatus: z.enum(['AVAILABLE', 'BOOKED', 'MAINTENANCE', 'INACTIVE']).default('AVAILABLE'),
-  vehicleRating: z.number().min(0).max(5).optional().nullable(),
-  totalSeats: z.number().min(1, 'Total seats must be at least 1'),
+  vehicleRating: z.coerce.number().min(0).max(5).optional().nullable(),
+  totalSeats: z.coerce.number().min(1, 'Total seats must be at least 1'),
   startDate: z.string()
     .transform((date) => date ? new Date(date).toISOString() : null)
     .optional()
@@ -139,6 +153,22 @@ const vehicleSchema = z.object({
   // Rate tables travel with the vessel; handled separately from the row data.
   charterRates: jsonArray(charterRateSchema),
   logisticsRates: jsonArray(logisticsRateSchema),
+});
+
+/**
+ * Updates are partial: the edit dialog doesn't manage every field on the vessel.
+ *
+ * totalSeats isn't on that form at all, and `hasAc` must lose its `.default(false)`
+ * here — a default would silently switch AC off on every edit that didn't send it.
+ */
+const updateVehicleSchema = vehicleSchema.extend({
+  totalSeats: z.coerce.number().min(1).optional(),
+  hasAc: z
+    .union([z.boolean(), z.enum(['true', 'false']).transform((v) => v === 'true')])
+    .optional(),
+  vehicleStatus: z
+    .enum(['AVAILABLE', 'BOOKED', 'MAINTENANCE', 'INACTIVE'])
+    .optional(),
 });
 
 const MAX_VESSEL_IMAGES = 5;
@@ -437,9 +467,14 @@ const createVehicle = async (req, res) => {
     console.error('Vehicle creation error:', error);
     
     if (error instanceof z.ZodError) {
+      // Name the offending fields: a bare "Validation error" toast gives the
+      // operator nothing to act on.
+      const detail = error.errors
+        .map((e) => `${e.path.join('.') || 'form'}: ${e.message}`)
+        .join('; ');
       return res.status(400).json({
         success: false,
-        message: 'Validation error',
+        message: `Validation error — ${detail}`,
         errors: error.errors,
       });
     }
@@ -455,7 +490,7 @@ const createVehicle = async (req, res) => {
 const updateVehicle = async (req, res) => {
   try {
     const { id } = req.params;
-    const validatedData = vehicleSchema.parse(req.body);
+    const validatedData = updateVehicleSchema.parse(req.body);
 
     // Check if vehicle exists and user has access
     const existingVehicle = await prisma.vehicle.findUnique({
@@ -538,9 +573,14 @@ const updateVehicle = async (req, res) => {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
+      // Name the offending fields: a bare "Validation error" toast gives the
+      // operator nothing to act on.
+      const detail = error.errors
+        .map((e) => `${e.path.join('.') || 'form'}: ${e.message}`)
+        .join('; ');
       return res.status(400).json({
         success: false,
-        message: 'Validation error',
+        message: `Validation error — ${detail}`,
         errors: error.errors,
       });
     }
@@ -683,6 +723,9 @@ const getRoutesList = async (req, res) => {
 };
 
 module.exports = {
+  // exported for tests
+  vehicleSchema,
+  updateVehicleSchema,
   getAllVehicles,
   getVehicleById,
   createVehicle,
