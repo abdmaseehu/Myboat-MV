@@ -88,7 +88,18 @@ const getRequestsIRequested = async (req, res) => {
       orderBy: { createdAt: 'desc' },
       include: {
         vessel: { select: { id: true, vehicleName: true, vehicleNumber: true } },
-        vendor: { select: { id: true, businessName: true, phone: true, email: true } },
+        vendor: {
+          // Vendor has no `phone`/`email` columns - the operator's public
+          // contact lives on contact*, with business* as the fallback.
+          select: {
+            id: true,
+            businessName: true,
+            contactPhone: true,
+            contactEmail: true,
+            businessMobile: true,
+            businessEmail: true,
+          },
+        },
       },
     });
     return res.json({ success: true, data: requests });

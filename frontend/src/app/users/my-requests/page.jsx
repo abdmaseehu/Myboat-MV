@@ -313,16 +313,22 @@ export default function MyRequestsPage() {
                         </span>
                         {viewReq.vendor.businessName}
                       </div>
-                      {viewReq.vendor.phone && (
+                      {/* Operators set a public contact; fall back to the
+                          business details they registered with. */}
+                      {(viewReq.vendor.contactPhone ||
+                        viewReq.vendor.businessMobile) && (
                         <div className="flex items-center gap-2">
                           <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                          {viewReq.vendor.phone}
+                          {viewReq.vendor.contactPhone ||
+                            viewReq.vendor.businessMobile}
                         </div>
                       )}
-                      {viewReq.vendor.email && (
+                      {(viewReq.vendor.contactEmail ||
+                        viewReq.vendor.businessEmail) && (
                         <div className="flex items-center gap-2">
                           <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                          {viewReq.vendor.email}
+                          {viewReq.vendor.contactEmail ||
+                            viewReq.vendor.businessEmail}
                         </div>
                       )}
                     </div>
