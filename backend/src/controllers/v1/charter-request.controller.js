@@ -124,7 +124,8 @@ const createRequest = async (req, res) => {
 
     let vendorId = body.vendorId || null;
     let isManual = !!body.isManual;
-    let status = body.status || 'PENDING';
+    // Customers always start at PENDING; only an operator picks a status.
+    let status = 'PENDING';
 
     if (isOperator) {
       const vendor = await getVendorForUser(req.user.id);
@@ -169,7 +170,10 @@ const createRequest = async (req, res) => {
       operatorNotes: body.operatorNotes || null,
     };
 
-    if (body.quotedPrice) {
+    // Only an operator may set a price. A customer posting quotedPrice would
+    // otherwise be naming their own fare, and body.status let them mark it
+    // ACCEPTED at the same time.
+    if (isOperator && body.quotedPrice) {
       data.quotedPrice = body.quotedPrice;
       data.quotedCurrency = body.quotedCurrency || 'MVR';
       data.quotedAt = new Date();
@@ -546,11 +550,155 @@ const getAllRequests = async (req, res) => {
   }
 };
 
+/**
+ * POST /charter-requests/instant
+ *
+ * Books a private charter at the operator's published price. The price is
+ * recomputed here from the vessel's rate table — never taken from the request
+ * body, or the customer would be naming their own fare.
+ *
+ * Creates an ACCEPTED request rather than a separate booking type, so instant
+ * bookings land in the operator's existing Charter Requests screen alongside
+ * everything else.
+ */
+const createInstantBooking = async (req, res) => {
+  try {
+    const body = req.body || {};
+    const { vesselId, origin, destination, tripDate } = body;
+
+    if (!vesselId || !origin || !destination || !tripDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vessel, route and trip date are required',
+      });
+    }
+
+    const passengers = parseInt(body.passengers, 10) || 1;
+
+    const vessel = await prisma.vehicle.findUnique({
+      where: { id: vesselId },
+      select: {
+        id: true,
+        userId: true,
+        totalSeats: true,
+        serviceTypes: true,
+        charterPricingMode: true,
+        charterInstantBooking: true,
+        vehicleStatus: true,
+        charterRates: true,
+      },
+    });
+
+    if (!vessel) {
+      return res.status(404).json({ success: false, message: 'Vessel not found' });
+    }
+
+    const offersCharter =
+      Array.isArray(vessel.serviceTypes) &&
+      vessel.serviceTypes.includes('PRIVATE_CHARTER');
+    if (!offersCharter || !['AVAILABLE', 'BOOKED'].includes(vessel.vehicleStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: 'This vessel is not available for private charter',
+      });
+    }
+
+    if (vessel.totalSeats < passengers) {
+      return res.status(400).json({
+        success: false,
+        message: `This vessel takes up to ${vessel.totalSeats} passengers`,
+      });
+    }
+
+    const rate = vessel.charterRates.find(
+      (r) => r.fromIsland === origin && r.toIsland === destination
+    );
+    const priced =
+      vessel.charterPricingMode === 'LIVE' &&
+      rate &&
+      !rate.quoteOnly &&
+      (rate.priceMvr != null || rate.priceUsd != null);
+
+    if (!priced) {
+      return res.status(400).json({
+        success: false,
+        message: 'This trip has no published price. Please request a quote instead.',
+      });
+    }
+
+    // Honour the requested currency only if the operator actually published it.
+    const wanted = String(body.currency || '').toUpperCase();
+    let currency = null;
+    if (wanted === 'MVR' && rate.priceMvr != null) currency = 'MVR';
+    else if (wanted === 'USD' && rate.priceUsd != null) currency = 'USD';
+    else currency = rate.priceMvr != null ? 'MVR' : 'USD';
+
+    const price = currency === 'MVR' ? rate.priceMvr : rate.priceUsd;
+
+    const vendor = vessel.userId
+      ? await prisma.vendor.findUnique({
+          where: { userId: vessel.userId },
+          select: { id: true },
+        })
+      : null;
+
+    const created = await prisma.charterRequest.create({
+      data: {
+        userId: req.user.id,
+        vendorId: vendor?.id || null,
+        vesselId: vessel.id,
+        origin,
+        destination,
+        tripDate: new Date(tripDate),
+        departureTime: body.departureTime
+          ? new Date(`1970-01-01T${body.departureTime}`)
+          : null,
+        passengers,
+        guestName: body.guestName || null,
+        guestEmail: body.guestEmail || null,
+        guestPhone: body.guestPhone || null,
+        specialRequirements: body.specialRequirements || null,
+        // The customer accepted a published price, so this is agreed, not pending.
+        status: 'ACCEPTED',
+        quotedPrice: price,
+        quotedCurrency: currency,
+        quotedAt: new Date(),
+        paymentMethod: body.paymentMethod === 'BANK_TRANSFER' ? 'BANK_TRANSFER' : 'CASH',
+        paymentType: 'FULL',
+        isManual: false,
+      },
+    });
+
+    if (vendor?.id) {
+      const vendorUserId = await getVendorUserId(prisma, vendor.id);
+      if (vendorUserId) {
+        await notify(prisma, {
+          userId: vendorUserId,
+          type: 'REQUEST_RECEIVED',
+          title: `Charter booked: ${routeLabel(created)}`,
+          body: `${created.passengers} passenger(s) on ${new Date(created.tripDate)
+            .toISOString()
+            .slice(0, 10)} at your published price. No quote needed.`,
+          link: '/admin/charter-requests',
+          entityType: 'CHARTER_REQUEST',
+          entityId: created.id,
+        });
+      }
+    }
+
+    return res.status(201).json({ success: true, data: created });
+  } catch (error) {
+    console.error('createInstantBooking error:', error);
+    return res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   getMyRequests,
   getRequestsIRequested,
   getRequestById,
   createRequest,
+  createInstantBooking,
   sendQuote,
   updateRequest,
   deleteRequest,

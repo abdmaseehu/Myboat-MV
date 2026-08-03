@@ -47,16 +47,9 @@ export default function CharterResultCard({ vessel, trip }) {
   if (vessel.vendor?.id) query.set("vendor", vessel.vendor.id);
 
   const quoteHref = `/charter?${query.toString()}`;
-  // Instant checkout is not built yet, so a live-priced boat still goes through
-  // the request form — with the published price carried over so the operator
-  // confirms against the number the customer actually saw. Phase 4 replaces
-  // this with payment. Deliberately not linking to an unbuilt /charter/book.
-  const bookQuery = new URLSearchParams(query);
-  if (live && vessel.pricing.priceMvr != null)
-    bookQuery.set("priceMvr", String(vessel.pricing.priceMvr));
-  if (live && vessel.pricing.priceUsd != null)
-    bookQuery.set("priceUsd", String(vessel.pricing.priceUsd));
-  const bookHref = `/charter?${bookQuery.toString()}`;
+  // No price in the link: the booking page re-reads it from the operator's rate
+  // table, so a hand-edited URL can't buy a charter at the wrong price.
+  const bookHref = `/charter/book?${query.toString()}`;
 
   return (
     <Card className="overflow-hidden hover-lift">
@@ -145,7 +138,7 @@ export default function CharterResultCard({ vessel, trip }) {
                   className="bg-coral hover:bg-coral-soft text-white rounded-full"
                 >
                   <Link href={bookHref}>
-                    Book this boat
+                    {instant ? "Book now" : "Book this boat"}
                     <ArrowRight className="ml-1.5 h-4 w-4" />
                   </Link>
                 </Button>

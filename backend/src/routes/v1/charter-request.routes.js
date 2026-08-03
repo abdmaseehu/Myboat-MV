@@ -5,6 +5,7 @@ const {
   getRequestsIRequested,
   getRequestById,
   createRequest,
+  createInstantBooking,
   sendQuote,
   updateRequest,
   deleteRequest,
@@ -23,6 +24,7 @@ router.get('/', getMyRequests);
 router.get('/:id/payment-info', getPaymentInfo);
 router.get('/:id', getRequestById);
 router.post('/', createRequest);
+router.post('/instant', createInstantBooking);
 router.post('/:id/mark-paid', markPaid);
 router.patch('/:id/quote', sendQuote);
 router.patch('/:id', updateRequest);
