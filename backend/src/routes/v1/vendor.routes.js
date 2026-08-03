@@ -16,6 +16,7 @@ const {
   getPublicVessel,
   getPublicVessels,
   getPublicRoute,
+  getPublicRoutes,
 } = require('../../controllers/v1/vendor.controller');
 
 // PUBLIC routes (no auth)
@@ -23,6 +24,7 @@ router.get('/public', getPublicVendors);
 router.get('/public/vessel/:id', getPublicVessel);
 // Must come before '/public/:slug', otherwise Express matches these as slugs.
 router.get('/public/vessels', getPublicVessels);
+router.get('/public/routes', getPublicRoutes);
 router.get('/public/route/:id', getPublicRoute);
 router.get('/public/:slug', getVendorByPublicSlug);
 

@@ -9,6 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -75,6 +77,9 @@ export default function CompanyProfilePage() {
   const fileInputRef = useRef(null);
   const [embedType, setEmbedType] = useState("all");
   const [embedVesselId, setEmbedVesselId] = useState("");
+  // Sailing-schedule widget: the operator's own routes, and which are ticked.
+  const [routes, setRoutes] = useState([]);
+  const [embedRouteIds, setEmbedRouteIds] = useState([]);
 
   // Load vendor + vessels
   useEffect(() => {
@@ -121,6 +126,15 @@ export default function CompanyProfilePage() {
           setVessels(Array.isArray(list) ? list : []);
         } catch (_) {
           setVessels([]);
+        }
+        // /routes is owner-scoped: a VENDOR only ever sees their own.
+        try {
+          const rs = await api.get("/routes?limit=100");
+          const list =
+            rs.data?.data?.routes || rs.data?.data || rs.data?.routes || [];
+          setRoutes(Array.isArray(list) ? list : []);
+        } catch (_) {
+          setRoutes([]);
         }
       } catch (err) {
         toast.error(err?.response?.data?.message || "Failed to load profile");
@@ -176,6 +190,10 @@ export default function CompanyProfilePage() {
     embedType === "single"
       ? embedVesselId
         ? `${PUBLIC_APP_URL}/embed/vessel/${embedVesselId}`
+        : ""
+      : embedType === "schedule"
+      ? embedRouteIds.length
+        ? `${PUBLIC_APP_URL}/embed/routes?ids=${embedRouteIds.join(",")}`
         : ""
       : form.publicSlug
       ? `${PUBLIC_APP_URL}/embed/operator/${form.publicSlug}`
@@ -625,8 +643,83 @@ export default function CompanyProfilePage() {
                       Single Vessel
                     </Label>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="schedule" id="w-schedule" />
+                    <Label htmlFor="w-schedule" className="cursor-pointer">
+                      Sailing Schedule
+                    </Label>
+                  </div>
                 </RadioGroup>
+                {embedType === "schedule" && (
+                  <p className="text-xs text-muted-foreground">
+                    Publishes your departures with times, vessel and fares for
+                    the routes you tick below.
+                  </p>
+                )}
               </div>
+
+              {embedType === "schedule" && (
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Select Routes</Label>
+                    <div className="flex items-center gap-2">
+                      {embedRouteIds.length > 0 && (
+                        <Badge variant="outline">
+                          {embedRouteIds.length} selected
+                        </Badge>
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          setEmbedRouteIds(
+                            embedRouteIds.length === routes.length
+                              ? []
+                              : routes.map((r) => r.id)
+                          )
+                        }
+                        disabled={routes.length === 0}
+                      >
+                        {embedRouteIds.length === routes.length && routes.length
+                          ? "Clear all"
+                          : "Select all"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <ScrollArea className="h-48 rounded-md border">
+                    <div className="space-y-1 p-2">
+                      {routes.length === 0 ? (
+                        <p className="p-4 text-center text-sm text-muted-foreground">
+                          You have no routes yet. Create one under Routes first.
+                        </p>
+                      ) : (
+                        routes.map((r) => (
+                          <Label
+                            key={r.id}
+                            className="flex cursor-pointer items-center gap-3 rounded-md p-2 hover:bg-muted/60"
+                          >
+                            <Checkbox
+                              checked={embedRouteIds.includes(r.id)}
+                              onCheckedChange={() =>
+                                setEmbedRouteIds((prev) =>
+                                  prev.includes(r.id)
+                                    ? prev.filter((x) => x !== r.id)
+                                    : [...prev, r.id]
+                                )
+                              }
+                            />
+                            <span className="min-w-0 flex-1 truncate text-sm">
+                              {r.sourceCity} → {r.destinationCity}
+                            </span>
+                          </Label>
+                        ))
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+              )}
 
               {embedType === "single" && (
                 <div className="grid gap-2">
@@ -665,6 +758,8 @@ export default function CompanyProfilePage() {
                   <p className="text-xs text-muted-foreground">
                     {embedType === "single"
                       ? "Select a vessel above to generate its embed code."
+                      : embedType === "schedule"
+                      ? "Tick at least one route above to generate the schedule widget."
                       : "Set your public URL on the Public URL tab first — the all-vessels widget is served from it."}
                   </p>
                 )}

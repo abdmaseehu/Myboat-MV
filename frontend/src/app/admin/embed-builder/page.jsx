@@ -7,13 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -52,7 +45,7 @@ export default function EmbedBuilderPage() {
   const [vessels, setVessels] = useState([]);
 
   const [mode, setMode] = useState("route"); // "route" | "vessels"
-  const [routeId, setRouteId] = useState("");
+  const [routeIds, setRouteIds] = useState([]);
   const [selectedVessels, setSelectedVessels] = useState([]);
   const [vesselQuery, setVesselQuery] = useState("");
   const [height, setHeight] = useState(600);
@@ -61,7 +54,7 @@ export default function EmbedBuilderPage() {
     (async () => {
       try {
         const [r, v] = await Promise.allSettled([
-          api.get("/vehicles/routes/list"),
+          api.get("/routes?limit=200"),
           api.get("/vehicles?limit=200"),
         ]);
         if (r.status === "fulfilled") {
@@ -95,12 +88,17 @@ export default function EmbedBuilderPage() {
 
   const embedUrl = useMemo(() => {
     if (mode === "route") {
-      return routeId ? `${PUBLIC_APP_URL}/embed/route/${routeId}` : "";
+      if (!routeIds.length) return "";
+      // One route gets the dedicated page (nicer header); several get the
+      // combined timetable.
+      return routeIds.length === 1
+        ? `${PUBLIC_APP_URL}/embed/route/${routeIds[0]}`
+        : `${PUBLIC_APP_URL}/embed/routes?ids=${routeIds.join(",")}`;
     }
     return selectedVessels.length
       ? `${PUBLIC_APP_URL}/embed/vessels?ids=${selectedVessels.join(",")}`
       : "";
-  }, [mode, routeId, selectedVessels]);
+  }, [mode, routeIds, selectedVessels]);
 
   const snippet = embedUrl
     ? `<iframe src="${embedUrl}" width="100%" height="${
@@ -181,10 +179,10 @@ export default function EmbedBuilderPage() {
                 <RadioGroupItem value="route" id="mode-route" />
                 <span className="space-y-1">
                   <span className="flex items-center gap-1.5 font-medium">
-                    <RouteIcon className="h-4 w-4 text-sky-500" /> A route
+                    <RouteIcon className="h-4 w-4 text-sky-500" /> Routes
                   </span>
                   <span className="block text-xs text-muted-foreground">
-                    Live timetable of every departure on one route
+                    Live timetable of every departure, with fares
                   </span>
                 </span>
               </Label>
@@ -207,25 +205,61 @@ export default function EmbedBuilderPage() {
 
             {mode === "route" ? (
               <div className="space-y-2">
-                <Label>Route</Label>
-                <Select value={routeId || undefined} onValueChange={setRouteId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a route" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-72">
+                <div className="flex items-center justify-between">
+                  <Label>Routes</Label>
+                  <div className="flex items-center gap-2">
+                    {routeIds.length > 0 && (
+                      <Badge variant="outline">{routeIds.length} selected</Badge>
+                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={routes.length === 0}
+                      onClick={() =>
+                        setRouteIds(
+                          routeIds.length === routes.length
+                            ? []
+                            : routes.map((r) => r.id)
+                        )
+                      }
+                    >
+                      {routeIds.length === routes.length && routes.length
+                        ? "Clear all"
+                        : "Select all"}
+                    </Button>
+                  </div>
+                </div>
+                <ScrollArea className="h-64 rounded-md border">
+                  <div className="space-y-1 p-2">
                     {routes.length === 0 ? (
-                      <SelectItem value="__none" disabled>
-                        No routes found
-                      </SelectItem>
+                      <p className="p-4 text-center text-sm text-muted-foreground">
+                        No routes found.
+                      </p>
                     ) : (
                       routes.map((r) => (
-                        <SelectItem key={r.id} value={r.id}>
-                          {routeLabel(r)}
-                        </SelectItem>
+                        <Label
+                          key={r.id}
+                          className="flex cursor-pointer items-center gap-3 rounded-md p-2 hover:bg-muted/60"
+                        >
+                          <Checkbox
+                            checked={routeIds.includes(r.id)}
+                            onCheckedChange={() =>
+                              setRouteIds((prev) =>
+                                prev.includes(r.id)
+                                  ? prev.filter((x) => x !== r.id)
+                                  : [...prev, r.id]
+                              )
+                            }
+                          />
+                          <span className="min-w-0 flex-1 truncate text-sm">
+                            {routeLabel(r)}
+                          </span>
+                        </Label>
                       ))
                     )}
-                  </SelectContent>
-                </Select>
+                  </div>
+                </ScrollArea>
               </div>
             ) : (
               <div className="space-y-2">
@@ -354,7 +388,7 @@ export default function EmbedBuilderPage() {
                 value={snippet}
                 placeholder={
                   mode === "route"
-                    ? "Select a route to generate the code"
+                    ? "Select at least one route to generate the code"
                     : "Select at least one vessel to generate the code"
                 }
                 className="w-full rounded-md border bg-muted/40 p-3 font-mono text-xs"

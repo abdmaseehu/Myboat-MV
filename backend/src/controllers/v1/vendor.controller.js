@@ -788,6 +788,44 @@ const getPublicVessels = async (req, res) => {
   }
 };
 
+const PUBLIC_ROUTE_SELECT = {
+  id: true,
+  sourceCity: true,
+  destinationCity: true,
+  serviceType: true,
+  distance: true,
+  durationMinutes: true,
+  isActive: true,
+};
+
+const PUBLIC_SCHEDULE_SELECT = {
+  id: true,
+  routeId: true,
+  departureTime: true,
+  arrivalTime: true,
+  availableSeats: true,
+  priceLocalMvr: true,
+  priceExpatMvr: true,
+  priceTouristUsd: true,
+  vehicles: { select: PUBLIC_VESSEL_SELECT },
+};
+
+// departureTime is a full timestamp but means a time of day, so order on
+// minutes-of-day rather than the raw date.
+const minutesOfDay = (d) => {
+  const t = new Date(d);
+  return t.getUTCHours() * 60 + t.getUTCMinutes();
+};
+
+const fetchActiveSchedules = async (routeIds) => {
+  const schedules = await prisma.busSchedule.findMany({
+    where: { routeId: { in: routeIds }, status: 'ACTIVE' },
+    select: PUBLIC_SCHEDULE_SELECT,
+  });
+  schedules.sort((a, b) => minutesOfDay(a.departureTime) - minutesOfDay(b.departureTime));
+  return schedules;
+};
+
 // GET /vendors/public/route/:id - PUBLIC route + its active departures (embed)
 const getPublicRoute = async (req, res) => {
   try {
@@ -796,13 +834,7 @@ const getPublicRoute = async (req, res) => {
     const route = await prisma.route.findUnique({
       where: { id },
       select: {
-        id: true,
-        sourceCity: true,
-        destinationCity: true,
-        serviceType: true,
-        distance: true,
-        durationMinutes: true,
-        isActive: true,
+        ...PUBLIC_ROUTE_SELECT,
         boardingPoints: {
           select: { id: true, locationName: true, sequenceNumber: true },
           orderBy: { sequenceNumber: 'asc' },
@@ -814,31 +846,45 @@ const getPublicRoute = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Route not found' });
     }
 
-    const schedules = await prisma.busSchedule.findMany({
-      where: { routeId: id, status: 'ACTIVE' },
-      select: {
-        id: true,
-        departureTime: true,
-        arrivalTime: true,
-        availableSeats: true,
-        priceLocalMvr: true,
-        priceExpatMvr: true,
-        priceTouristUsd: true,
-        vehicles: { select: PUBLIC_VESSEL_SELECT },
-      },
-    });
-
-    // departureTime is a full timestamp but means a time of day, so sort on
-    // minutes-of-day rather than the raw date.
-    const minutesOfDay = (d) => {
-      const t = new Date(d);
-      return t.getUTCHours() * 60 + t.getUTCMinutes();
-    };
-    schedules.sort((a, b) => minutesOfDay(a.departureTime) - minutesOfDay(b.departureTime));
+    const schedules = await fetchActiveSchedules([id]);
 
     res.json({ success: true, data: { route, schedules } });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message || 'Error retrieving route' });
+  }
+};
+
+// GET /vendors/public/routes?ids=a,b,c - PUBLIC timetable across several routes
+const getPublicRoutes = async (req, res) => {
+  try {
+    const ids = String(req.query.ids || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 24);
+
+    if (!ids.length) {
+      return res.status(400).json({ success: false, message: 'No route ids supplied' });
+    }
+
+    const routes = await prisma.route.findMany({
+      where: { id: { in: ids }, isActive: true },
+      select: PUBLIC_ROUTE_SELECT,
+    });
+
+    const schedules = await fetchActiveSchedules(routes.map((r) => r.id));
+
+    // Group departures under their route, keeping the order the operator chose.
+    const data = routes
+      .map((route) => ({
+        route,
+        schedules: schedules.filter((s) => s.routeId === route.id),
+      }))
+      .sort((a, b) => ids.indexOf(a.route.id) - ids.indexOf(b.route.id));
+
+    res.json({ success: true, data: { routes: data } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message || 'Error retrieving routes' });
   }
 };
 
@@ -855,4 +901,5 @@ module.exports = {
   getPublicVessel,
   getPublicVessels,
   getPublicRoute,
+  getPublicRoutes,
 };
