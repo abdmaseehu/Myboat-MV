@@ -28,6 +28,7 @@ const isAuthenticated = async (req, res, next) => {
         firstName: true,
         lastName: true,
         role: true,
+        active: true,
       },
     });
 
@@ -35,6 +36,16 @@ const isAuthenticated = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         message: 'User not found',
+      });
+    }
+
+    // A suspended account must lose access everywhere, not just on the screen
+    // that suspended it. Without this, `active` was stored but never enforced.
+    if (user.active === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'This account has been suspended. Please contact Myboat support.',
+        code: 'ACCOUNT_SUSPENDED',
       });
     }
 
