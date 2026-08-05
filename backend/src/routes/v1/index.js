@@ -16,6 +16,7 @@ const incomeExpenseRoutes = require('./income-expense.routes');
 const driverRoutes = require('./driver.routes');
 const driverVehicleAssignedRoutes = require('./driver-vehicle-assigned.routes');
 const publicWebRoutes = require('./public-web.routes');
+const commissionRoutes = require('./commission.routes');
 const bookingRoutes = require('./booking.routes');
 const mobileAuthRoutes = require('./mobile-auth.routes');
 const paymentRoutes = require('./payment.routes');
@@ -32,6 +33,7 @@ const islandRoutes = require('./island.routes');
 
 // Public routes (no authentication required)
 router.use('/public', publicWebRoutes);
+router.use('/commissions', commissionRoutes);
 
 // Protected routes (require authentication)
 router.use('/auth', userRoutes);
