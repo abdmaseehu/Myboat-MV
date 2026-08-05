@@ -281,16 +281,29 @@ export default function RequestPaymentPage() {
                 mono
               />
               <p className="text-[11px] text-muted-foreground pt-1">
-                Please include the reference so the operator can match your
+                Please include the reference so{" "}
+                {operator?.isPlatform ? "we" : "the operator"} can match your
                 transfer.
               </p>
             </div>
           ) : (
             <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-              This operator hasn&apos;t published their {currency} bank account
-              yet. Contact them directly
-              {operator?.contactPhone ? ` on ${operator.contactPhone}` : ""} to
-              arrange payment.
+              {/* Myboat sourced this trip itself, so the platform is the payee. */}
+              {operator?.isPlatform ? (
+                <>
+                  Our {currency} account details aren&apos;t published yet.
+                  The Myboat team will contact you
+                  {operator?.contactPhone ? ` on ${operator.contactPhone}` : ""} to
+                  arrange payment for this trip.
+                </>
+              ) : (
+                <>
+                  This operator hasn&apos;t published their {currency} bank
+                  account yet. Contact them directly
+                  {operator?.contactPhone ? ` on ${operator.contactPhone}` : ""} to
+                  arrange payment.
+                </>
+              )}
             </div>
           )}
 

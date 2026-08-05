@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const { notify, getVendorUserId, notifyAdmins } = require('../../utils/notify');
 const { redactForViewer, redactListForViewer } = require('../../utils/redact');
+const { getPlatformPaymentDetails } = require('../../utils/platform-bank');
 const prisma = new PrismaClient();
 
 // Helper: get vendor for the authenticated user (VENDOR role)
@@ -428,8 +429,24 @@ const getPaymentInfo = async (req, res) => {
         .status(400)
         .json({ success: false, message: 'Payment details are available once the quote is accepted' });
     }
+    // A request Myboat sourced itself has no operator: the customer pays the
+    // platform, so fall back to Myboat's own accounts rather than dead-ending.
     if (!request.vendorId) {
-      return res.status(400).json({ success: false, message: 'No operator assigned' });
+      const platform = await getPlatformPaymentDetails(
+        prisma,
+        request.quotedCurrency || 'MVR'
+      );
+      return res.json({
+        success: true,
+        data: {
+          request,
+          operator: platform.operator,
+          bank: platform.bank,
+          bankConfigured: platform.configured,
+          reference: `CH-${String(request.id).slice(0, 8).toUpperCase()}`,
+          cardPaymentAvailable: false,
+        },
+      });
     }
 
     const vendor = await prisma.vendor.findUnique({
