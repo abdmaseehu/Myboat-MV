@@ -14,6 +14,8 @@ enum UserRole {
     VENDOR
     ADMIN
     DRIVER
+    // Guesthouses and resorts that sell operators' seats on commission.
+    AGENT
 }
 
 enum VendorStatus {
@@ -254,6 +256,22 @@ model Vehicle {
     @@map("vehicles")
 }
 
+/// Admin-defined markup added on top of an operator's fare for one route.
+/// One row per route at most; a route with no row simply has no markup, which
+/// the pricing code treats as 0.00 rather than an error.
+model RouteMarkup {
+    id             String   @id @default(cuid())
+    routeId        String   @unique @map("route_id")
+    markupLocal    Decimal  @default(0.00) @map("markup_local") @db.Decimal(10, 2)
+    markupExpat    Decimal  @default(0.00) @map("markup_expat") @db.Decimal(10, 2)
+    markupTourist  Decimal  @default(0.00) @map("markup_tourist") @db.Decimal(10, 2)
+    createdAt      DateTime @default(now()) @map("created_at")
+    updatedAt      DateTime @updatedAt @map("updated_at")
+    route          Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+    @@map("route_markups")
+}
+
 /// Per-vessel private-charter price for one island pair. A flat price for the
 /// whole boat; either currency may be left blank, and quoteOnly hides price
 /// entirely so the customer requests a quote instead.
@@ -315,6 +333,7 @@ model Route {
     droppingPoints  DroppingPoint[]
     busSchedules    BusSchedule[]
     bookings        Booking[]
+    markup          RouteMarkup?
 
     @@unique([sourceCity, destinationCity])
     @@map("routes")
