@@ -15,6 +15,9 @@ import {
   CreditCard,
   Info,
   Ship,
+  Upload,
+  FileText,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -71,8 +74,13 @@ export default function RequestPaymentPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [marking, setMarking] = useState(false);
   const [copied, setCopied] = useState(null);
+  const [slip, setSlip] = useState(null);
+  const [slipError, setSlipError] = useState(null);
 
   const base = type === "charter" ? "/charter-requests" : "/logistics-requests";
+  // Logistics money goes straight to the operator's account, so the slip is
+  // the only proof the order was paid — it is what submitting means here.
+  const needsSlip = type === "logistics";
 
   const load = async () => {
     try {
@@ -107,12 +115,42 @@ export default function RequestPaymentPage() {
     }
   };
 
+  // Logistics is paid into the operator's own account, where we can see
+  // nothing. The slip is the evidence, so it goes up with the submission
+  // rather than a bare "I've paid".
+  const SLIP_TYPES = /\.(jpe?g|png|webp|pdf)$/i;
+  const MAX_SLIP_BYTES = 5 * 1024 * 1024;
+
+  const pickSlip = (file) => {
+    if (!file) return;
+    if (!SLIP_TYPES.test(file.name)) {
+      setSlipError("Attach a photo or PDF of your transfer slip");
+      return;
+    }
+    if (file.size > MAX_SLIP_BYTES) {
+      setSlipError("That file is over 5 MB — try a photo or a smaller scan");
+      return;
+    }
+    setSlipError(null);
+    setSlip(file);
+  };
+
   const confirmPaid = async () => {
     try {
       setMarking(true);
-      await api.post(`${base}/${id}/mark-paid`);
-      toast.success("Thanks — the operator has been notified to verify it");
+      if (needsSlip) {
+        const form = new FormData();
+        form.append("slip", slip);
+        await api.post(`${base}/${id}/submit-order`, form, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        toast.success("Order submitted — the operator will verify your transfer");
+      } else {
+        await api.post(`${base}/${id}/mark-paid`);
+        toast.success("Thanks — the operator has been notified to verify it");
+      }
       setConfirmOpen(false);
+      setSlip(null);
       load();
     } catch (e) {
       toast.error(
@@ -146,7 +184,8 @@ export default function RequestPaymentPage() {
   const { request, operator, bank, reference, cardPaymentAvailable } = data;
   const currency = (request.quotedCurrency || "MVR").toUpperCase();
   const theme = currencyTheme(currency);
-  const alreadyDeclared = request.paymentMethod === "BANK_TRANSFER";
+  const alreadyDeclared =
+    request.paymentMethod === "BANK_TRANSFER" || request.paymentStatus === "SUBMITTED";
   const bankReady = bank?.bankName || bank?.accountNumber;
 
   return (
@@ -343,19 +382,90 @@ export default function RequestPaymentPage() {
             <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-500/20 p-4 text-sm text-emerald-700 dark:text-emerald-400 flex items-start gap-2">
               <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
               <div>
-                You&apos;ve marked this as paid. The operator is verifying your
-                transfer and will confirm shortly.
+                {needsSlip && request.paymentSlipUploadedAt ? (
+                  <>
+                    Order submitted on{" "}
+                    {new Date(request.paymentSlipUploadedAt).toLocaleString()}.
+                    The operator is checking your slip against their account and
+                    will confirm shortly.
+                  </>
+                ) : (
+                  <>
+                    You&apos;ve marked this as paid. The operator is verifying
+                    your transfer and will confirm shortly.
+                  </>
+                )}
               </div>
             </div>
           ) : (
-            <Button
-              onClick={() => setConfirmOpen(true)}
-              disabled={!bankReady}
-              className="w-full h-12 rounded-full bg-coral hover:bg-coral-soft text-white shadow-coral"
-            >
-              <CheckCircle2 className="h-4 w-4 mr-2" /> I&apos;ve made the
-              payment
-            </Button>
+            <>
+              {needsSlip && (
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">
+                    Upload your transfer slip
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    The transfer lands in the operator&apos;s account, not ours,
+                    so we can&apos;t see it. Attach the slip from your banking
+                    app and the operator can match it straight away.
+                  </p>
+
+                  {slip ? (
+                    <div className="flex items-center justify-between gap-3 rounded-xl border p-3">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <FileText className="h-4 w-4 shrink-0 text-lagoon" />
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium">
+                            {slip.name}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {(slip.size / 1024).toFixed(0)} KB
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0"
+                        onClick={() => setSlip(null)}
+                        aria-label="Remove slip"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <label className="flex cursor-pointer flex-col items-center gap-1.5 rounded-xl border border-dashed p-6 text-center transition hover:border-lagoon hover:bg-muted/40">
+                      <Upload className="h-5 w-5 text-muted-foreground" />
+                      <span className="text-sm font-medium">
+                        Choose a photo or PDF
+                      </span>
+                      <span className="text-[11px] text-muted-foreground">
+                        JPG, PNG, WEBP or PDF · up to 5 MB
+                      </span>
+                      <input
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.webp,.pdf"
+                        className="hidden"
+                        onChange={(e) => pickSlip(e.target.files?.[0])}
+                      />
+                    </label>
+                  )}
+
+                  {slipError && (
+                    <p className="text-xs text-destructive">{slipError}</p>
+                  )}
+                </div>
+              )}
+
+              <Button
+                onClick={() => setConfirmOpen(true)}
+                disabled={!bankReady || (needsSlip && !slip)}
+                className="w-full h-12 rounded-full bg-coral hover:bg-coral-soft text-white shadow-coral"
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                {needsSlip ? "Submit order" : "I've made the payment"}
+              </Button>
+            </>
           )}
         </CardContent>
       </Card>
@@ -363,15 +473,25 @@ export default function RequestPaymentPage() {
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Confirm your transfer</DialogTitle>
+            <DialogTitle>
+              {needsSlip ? "Submit your order" : "Confirm your transfer"}
+            </DialogTitle>
             <DialogDescription>
               Only confirm once you&apos;ve actually sent{" "}
               <span className="font-semibold">
                 {fmtMoney(request.quotedPrice, currency)}
               </span>{" "}
               with reference{" "}
-              <span className="font-mono font-semibold">{reference}</span>. The
-              operator will verify it before your booking is finalised.
+              <span className="font-mono font-semibold">{reference}</span>.
+              {needsSlip && slip ? (
+                <>
+                  {" "}
+                  We&apos;ll send{" "}
+                  <span className="font-semibold">{slip.name}</span> to the
+                  operator as proof.
+                </>
+              ) : null}{" "}
+              The operator will verify it before your booking is finalised.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -384,7 +504,7 @@ export default function RequestPaymentPage() {
               className="bg-emerald-500 hover:bg-emerald-600 text-white"
             >
               {marking && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-              Yes, I&apos;ve paid
+              {needsSlip ? "Submit order" : "Yes, I've paid"}
             </Button>
           </DialogFooter>
         </DialogContent>

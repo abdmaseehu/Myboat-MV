@@ -268,6 +268,83 @@ function applyCharterRateMarkup(rate, charterCfg) {
   };
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Logistics                                                                  */
+/* -------------------------------------------------------------------------- */
+
+const LOGISTICS_KEYS = [
+  'LOGISTICS_MARKUP_MODE',
+  'LOGISTICS_MARKUP_PERCENT',
+  'LOGISTICS_MARKUP_FLAT_MVR',
+  'LOGISTICS_MARKUP_FLAT_USD',
+  'LOGISTICS_COMMISSION_PERCENT',
+];
+
+/**
+ * Logistics takes both a markup and a commission, because the two do different
+ * jobs and the customer pays the operator directly.
+ *
+ *   markup      added on top of the operator's quote — the customer pays it
+ *   commission  taken out of the operator's quote — the operator absorbs it
+ *
+ * Both are configured at once, and either can be zero.
+ */
+async function loadLogisticsConfig(prisma) {
+  const rows = await prisma.setting.findMany({
+    where: { keyName: { in: LOGISTICS_KEYS } },
+    select: { keyName: true, value: true },
+  });
+  const get = (k) => rows.find((r) => r.keyName === k)?.value;
+
+  return {
+    markup: {
+      mode: String(get('LOGISTICS_MARKUP_MODE') || '').toUpperCase() === 'FLAT' ? 'FLAT' : 'PERCENT',
+      percent: num(get('LOGISTICS_MARKUP_PERCENT'), 0),
+      flat: {
+        MVR: num(get('LOGISTICS_MARKUP_FLAT_MVR'), 0),
+        USD: num(get('LOGISTICS_MARKUP_FLAT_USD'), 0),
+      },
+    },
+    commissionPercent: num(get('LOGISTICS_COMMISSION_PERCENT'), 0),
+  };
+}
+
+/**
+ * Price a logistics quote.
+ *
+ *   customer pays  = operator quote + markup
+ *   operator keeps = operator quote - commission
+ *   Myboat's share = markup + commission
+ *
+ * The operator collects the whole of what the customer pays into their own
+ * account, so Myboat's share is not deducted anywhere — it becomes what the
+ * operator owes once the order completes. Both parts belong on one invoice
+ * because the operator settles them in one transfer, but they are recorded
+ * separately: only the markup was ever the customer's money.
+ */
+function applyLogisticsPricing(quotedAmount, currency, cfg) {
+  if (quotedAmount === null || quotedAmount === undefined || quotedAmount === '') return null;
+  const quoted = money(num(quotedAmount, 0));
+  const cur = currency === 'USD' ? 'USD' : 'MVR';
+
+  const markup =
+    cfg?.markup?.mode === 'FLAT'
+      ? money(num(cfg?.markup?.flat?.[cur], 0))
+      : money((quoted * num(cfg?.markup?.percent, 0)) / 100);
+
+  const commission = money((quoted * num(cfg?.commissionPercent, 0)) / 100);
+
+  return {
+    currency: cur,
+    operatorPrice: quoted,
+    markup,
+    commission,
+    publicPrice: money(quoted + markup),
+    vendorNet: money(quoted - commission),
+    platformCut: money(markup + commission),
+  };
+}
+
 /** Currency a tier settles in. Never inferred from anything else. */
 const currencyForTier = (tier) => TIERS[tier]?.currency || 'MVR';
 
@@ -345,6 +422,8 @@ module.exports = {
   applyCharterMarkup,
   applyCharterCommission,
   applyCharterRateMarkup,
+  loadLogisticsConfig,
+  applyLogisticsPricing,
   currencyForTier,
   computeFare,
   money,

@@ -2,10 +2,46 @@ const { PrismaClient } = require('@prisma/client');
 const { notify, getVendorUserId, notifyAdmins } = require('../../utils/notify');
 const { redactForViewer, redactListForViewer } = require('../../utils/redact');
 const { getPlatformPaymentDetails } = require('../../utils/platform-bank');
+const { loadLogisticsConfig, applyLogisticsPricing } = require('../../utils/fare-engine');
+const { raiseInvoiceForOrder } = require('../../utils/platform-invoice');
 const prisma = new PrismaClient();
 
 const getVendorForUser = async (userId) => {
   return prisma.vendor.findUnique({ where: { userId } });
+};
+
+/**
+ * Price an operator's logistics quote, and record how it divides.
+ *
+ * The customer pays the operator's figure plus Myboat's markup, straight into
+ * the operator's own account. The commission comes out of the operator's share.
+ * Neither is deducted anywhere at the time — the operator holds the whole
+ * amount, so `platformCutAmount` is what they will owe once the order is done.
+ *
+ * A quote Myboat sends itself, on the admin-direct requests where there is no
+ * operator to source from, is final: there is nobody to invoice.
+ */
+const priceLogistics = async (operatorAmount, currency, { platformIsOperator = false } = {}) => {
+  if (platformIsOperator) {
+    const amount = Number(operatorAmount);
+    return {
+      quotedPrice: amount,
+      vendorQuotedPrice: amount,
+      platformCutAmount: 0,
+      vendorNetAmount: amount,
+      quotedCurrency: (currency || 'MVR').toUpperCase(),
+    };
+  }
+  const cfg = await loadLogisticsConfig(prisma);
+  const priced = applyLogisticsPricing(operatorAmount, currency, cfg);
+  if (!priced) return null;
+  return {
+    quotedPrice: priced.publicPrice,
+    vendorQuotedPrice: priced.operatorPrice,
+    platformCutAmount: priced.platformCut,
+    vendorNetAmount: priced.vendorNet,
+    quotedCurrency: priced.currency,
+  };
 };
 
 // Optional decimal coercion: '' / null / undefined -> null
@@ -183,9 +219,13 @@ const createRequest = async (req, res) => {
       operatorNotes: body.operatorNotes || null,
     };
 
-    if (body.quotedPrice) {
-      data.quotedPrice = body.quotedPrice;
-      data.quotedCurrency = body.quotedCurrency || 'MVR';
+    // Only an operator may name a price on creation. A customer posting
+    // quotedPrice would otherwise be setting their own fare.
+    if (isOperator && body.quotedPrice) {
+      Object.assign(
+        data,
+        await priceLogistics(body.quotedPrice, body.quotedCurrency || 'MVR')
+      );
       data.quotedAt = new Date();
     }
 
@@ -274,9 +314,12 @@ const sendQuote = async (req, res) => {
       }
     }
 
+    const priced = await priceLogistics(quotedPrice, quotedCurrency, {
+      platformIsOperator: req.user.role !== 'VENDOR',
+    });
+
     const data = {
-      quotedPrice,
-      quotedCurrency,
+      ...priced,
       quotedAt: new Date(),
       status: 'QUOTED',
       operatorNotes: operatorNotes || request.operatorNotes,
@@ -298,7 +341,8 @@ const sendQuote = async (req, res) => {
         userId: updated.userId,
         type: 'QUOTE_RECEIVED',
         title: `Quote received for ${routeLabel(updated)}`,
-        body: `${quotedCurrency} ${Number(quotedPrice).toLocaleString()} — review and accept in My Requests.`,
+        // The public price, matching what they will see and pay.
+        body: `${quotedCurrency} ${Number(priced.quotedPrice).toLocaleString()} — review and accept in My Requests.`,
         link: '/users/my-requests',
         entityType: 'LOGISTICS_REQUEST',
         entityId: updated.id,
@@ -341,9 +385,47 @@ const updateRequest = async (req, res) => {
     }
     const body = req.body || {};
     const data = { ...body };
+
+    // The split between the operator's figure, Myboat's cut and the operator's
+    // net is the server's to make. Accepting any of it from the body would let
+    // a PATCH zero the cut and keep the whole fare.
+    delete data.vendorQuotedPrice;
+    delete data.platformCutAmount;
+    delete data.vendorNetAmount;
+    delete data.paymentSlip;
+    delete data.paymentSlipUploadedAt;
+    if (body.quotedPrice !== undefined && body.quotedPrice !== null && body.quotedPrice !== '') {
+      Object.assign(
+        data,
+        await priceLogistics(
+          body.quotedPrice,
+          body.quotedCurrency || request.quotedCurrency || 'MVR',
+          { platformIsOperator: req.user.role !== 'VENDOR' }
+        )
+      );
+    }
+
     if (body.tripDate) data.tripDate = new Date(body.tripDate);
 
     const updated = await prisma.logisticsRequest.update({ where: { id }, data });
+
+    // The order is done: the money the operator collected on Myboat's behalf
+    // becomes a debt. Raised here rather than at quote time because a quote can
+    // still be revised and a payment can still fail — completion is the first
+    // point at which the amount is real. Idempotent, so re-completing an order
+    // cannot bill it twice.
+    if (data.status === 'COMPLETED' && request.status !== 'COMPLETED') {
+      try {
+        await raiseInvoiceForOrder(prisma, {
+          requestType: 'LOGISTICS',
+          request: updated,
+        });
+      } catch (e) {
+        // An invoice that failed to raise must not undo the completion — the
+        // order really did finish. Logged for the admin to pick up.
+        console.error('raiseInvoiceForOrder failed for', updated.id, e.message);
+      }
+    }
 
     // Customer accepted / rejected the quote -> tell the operator.
     if (
@@ -576,7 +658,90 @@ const getAllRequests = async (req, res) => {
   }
 };
 
+/**
+ * POST /logistics-requests/:id/submit-order  (multipart, field: slip)
+ *
+ * The customer transferred to the operator's own account, in a banking app we
+ * can see nothing of. The slip is the only evidence the order was paid, so it
+ * is what submitting an order means here — a bare "I've paid" button leaves the
+ * operator with nothing to check against.
+ */
+const submitOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (req.fileValidationError) {
+      return res.status(400).json({ success: false, message: req.fileValidationError });
+    }
+    if (!req.file) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Please attach your transfer slip' });
+    }
+
+    const request = await prisma.logisticsRequest.findUnique({ where: { id } });
+    if (!request) {
+      return res.status(404).json({ success: false, message: 'Request not found' });
+    }
+    if (request.userId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+    if (request.status !== 'ACCEPTED') {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Accept the quote before submitting payment' });
+    }
+
+    const updated = await prisma.logisticsRequest.update({
+      where: { id },
+      data: {
+        paymentSlip: req.file.filename,
+        paymentSlipUploadedAt: new Date(),
+        paymentMethod: 'BANK_TRANSFER',
+        // The customer says they paid; the operator has yet to agree.
+        paymentStatus: 'SUBMITTED',
+      },
+    });
+
+    const reference = `LG-${String(updated.id).slice(0, 8).toUpperCase()}`;
+    const amount = `${updated.quotedCurrency || 'MVR'} ${Number(
+      updated.quotedPrice || 0
+    ).toLocaleString()}`;
+
+    if (updated.vendorId) {
+      const vendorUserId = await getVendorUserId(prisma, updated.vendorId);
+      if (vendorUserId) {
+        await notify(prisma, {
+          userId: vendorUserId,
+          type: 'PAYMENT_RECEIVED',
+          title: `Payment slip uploaded: ${routeLabel(updated)}`,
+          body: `${amount} (ref ${reference}). Check it against your account, then mark the order complete.`,
+          link: '/admin/logistics-requests',
+          entityType: 'LOGISTICS_REQUEST',
+          entityId: updated.id,
+        });
+      }
+    } else {
+      // Myboat sourced this one, so Myboat is the payee.
+      await notifyAdmins(prisma, {
+        type: 'PAYMENT_RECEIVED',
+        title: `Payment slip uploaded: ${routeLabel(updated)}`,
+        body: `${amount} (ref ${reference}) for a request Myboat is handling directly.`,
+        link: '/admin/all-logistics-requests',
+        entityType: 'LOGISTICS_REQUEST',
+        entityId: updated.id,
+      });
+    }
+
+    return res.json({ success: true, data: redactForViewer(updated, req.user) });
+  } catch (error) {
+    console.error('submitOrder logistics error', error);
+    return res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
+  submitOrder,
   getMyRequests,
   getRequestsIRequested,
   getRequestById,

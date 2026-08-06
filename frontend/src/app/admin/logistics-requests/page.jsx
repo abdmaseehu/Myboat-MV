@@ -13,6 +13,9 @@ import {
   Send,
   Plus,
   RefreshCw,
+  Receipt,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +59,9 @@ const STATUS_STYLES = {
 };
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString() : "-");
+
+/** Slips are served from the API host, same as every other upload. */
+const slipUrl = (file) => `${process.env.NEXT_PUBLIC_ROOT_URL}/uploads/${file}`;
 
 export default function LogisticsRequestsPage() {
   const { user } = useAuth();
@@ -207,6 +213,26 @@ export default function LogisticsRequestsPage() {
     }
   };
 
+  // Completing the order is what turns Myboat's share into an invoice, so it
+  // is confirmed rather than fired from a single click.
+  const [completing, setCompleting] = useState(null);
+  const [completeSubmitting, setCompleteSubmitting] = useState(false);
+
+  const confirmComplete = async () => {
+    if (!completing) return;
+    try {
+      setCompleteSubmitting(true);
+      await api.patch(`/logistics-requests/${completing.id}`, { status: "COMPLETED" });
+      toast.success("Order completed");
+      setCompleting(null);
+      fetchRequests();
+    } catch (e) {
+      toast.error(e?.response?.data?.message || "Could not complete the order");
+    } finally {
+      setCompleteSubmitting(false);
+    }
+  };
+
   const submitCreate = async () => {
     const required = ["guestName", "guestEmail", "origin", "destination", "tripDate", "quotedPrice"];
     for (const k of required) {
@@ -313,11 +339,43 @@ export default function LogisticsRequestsPage() {
                       <span>Volume: {r.volumeM3} m³</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 text-xs">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="text-muted-foreground">From:</span>
                     <Lock className="h-3.5 w-3.5 text-muted-foreground" />
                     <Badge className={STATUS_STYLES[r.status] || ""}>{r.status}</Badge>
+                    {/* The customer paid into the operator's own account, so
+                        the slip is the only thing to check it against. */}
+                    {r.paymentSlip && (
+                      <a
+                        href={slipUrl(r.paymentSlip)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 px-2 py-0.5 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400"
+                      >
+                        <Receipt className="h-3.5 w-3.5" /> View transfer slip
+                      </a>
+                    )}
                   </div>
+                  {r.quotedPrice && (
+                    <div className="flex flex-wrap gap-x-4 text-xs">
+                      <span className="text-muted-foreground">
+                        Customer pays{" "}
+                        <b className="text-foreground">
+                          {r.quotedCurrency || "MVR"}{" "}
+                          {Number(r.publicPrice ?? r.quotedPrice).toLocaleString()}
+                        </b>
+                      </span>
+                      {r.vendorNetAmount != null && (
+                        <span className="text-muted-foreground">
+                          You receive{" "}
+                          <b className="text-emerald-600">
+                            {r.quotedCurrency || "MVR"}{" "}
+                            {Number(r.vendorNetAmount).toLocaleString()}
+                          </b>
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button variant="outline" onClick={() => openView(r)}>
@@ -330,12 +388,50 @@ export default function LogisticsRequestsPage() {
                   >
                     <Send className="h-4 w-4 mr-1" /> Quote
                   </Button>
+                  {r.status === "ACCEPTED" && (
+                    <Button
+                      variant="outline"
+                      disabled={completeSubmitting && completing?.id === r.id}
+                      onClick={() => setCompleting(r)}
+                      className="border-emerald-500/40 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400"
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-1" /> Complete
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+
+      {/* Completing the order raises Myboat's invoice, so it is confirmed. */}
+      <Dialog open={!!completing} onOpenChange={(o) => !o && setCompleting(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mark this order complete?</DialogTitle>
+            <DialogDescription>
+              Confirm the cargo has been delivered and the customer&apos;s
+              transfer has landed in your account. Myboat will then invoice you
+              for its share of this order, payable from Finance &rarr; Myboat
+              Invoices.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCompleting(null)}>
+              Not yet
+            </Button>
+            <Button
+              onClick={confirmComplete}
+              disabled={completeSubmitting}
+              className="bg-emerald-500 text-white hover:bg-emerald-600"
+            >
+              {completeSubmitting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+              Yes, complete it
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* View Modal */}
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>

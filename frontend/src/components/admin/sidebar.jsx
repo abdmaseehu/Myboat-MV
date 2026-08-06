@@ -41,6 +41,7 @@ import {
   Crown,
   Landmark,
   QrCode,
+  FileText,
 } from "lucide-react";
 import { useSidebar } from "@/store/use-sidebar";
 import { useAuth } from "@/store/use-auth";
@@ -152,6 +153,12 @@ const adminRoutes = [
         label: "Commissions",
         icon: Wallet,
         href: "/admin/commissions",
+        color: "text-sky-500",
+      },
+      {
+        label: "Myboat Invoices",
+        icon: FileText,
+        href: "/admin/platform-invoices",
         color: "text-sky-500",
       },
       {
@@ -331,6 +338,12 @@ const vendorRoutes = [
   {
     group: "Finance",
     items: [
+      {
+        label: "Myboat Invoices",
+        icon: FileText,
+        href: "/admin/platform-invoices",
+        color: "text-sky-500",
+      },
       {
         label: "Categories",
         icon: Tags,

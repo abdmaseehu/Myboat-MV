@@ -49,6 +49,23 @@ const CHARTER_KEYS = {
 
 const ALL_CHARTER_KEYS = Object.values(CHARTER_KEYS).flatMap((g) => Object.values(g));
 
+/**
+ * Logistics takes both, because the customer pays the operator directly.
+ *
+ * The markup is added on top and paid by the customer; the commission comes out
+ * of the operator's quote. The operator collects the whole public price into
+ * their own account, so both parts together are what they owe Myboat once the
+ * order completes — which is why logistics needs an invoice and charter, where
+ * the split happens before the money moves, does not.
+ */
+const LOGISTICS_KEYS = {
+  markupMode: 'LOGISTICS_MARKUP_MODE',
+  markupPercent: 'LOGISTICS_MARKUP_PERCENT',
+  markupFlatMvr: 'LOGISTICS_MARKUP_FLAT_MVR',
+  markupFlatUsd: 'LOGISTICS_MARKUP_FLAT_USD',
+  commissionPercent: 'LOGISTICS_COMMISSION_PERCENT',
+};
+
 const ZERO_MARKUP = {
   markupLocal: 0,
   markupExpat: 0,
@@ -83,6 +100,14 @@ const charterSchema = z.object({
     })
     .optional(),
   quote: z.object({ commissionPercent: percentage.optional() }).optional(),
+});
+
+const logisticsSchema = z.object({
+  markupMode: z.enum(['PERCENT', 'FLAT']).optional(),
+  markupPercent: percentage.optional(),
+  markupFlatMvr: money.optional(),
+  markupFlatUsd: money.optional(),
+  commissionPercent: percentage.optional(),
 });
 
 const markupSchema = z.object({
@@ -139,6 +164,23 @@ const loadCharter = async () => {
   };
 };
 
+const loadLogistics = async () => {
+  const rows = await prisma.setting.findMany({
+    where: { keyName: { in: Object.values(LOGISTICS_KEYS) } },
+    select: { keyName: true, value: true },
+  });
+  return {
+    markupMode:
+      readText(rows, LOGISTICS_KEYS.markupMode, 'PERCENT').toUpperCase() === 'FLAT'
+        ? 'FLAT'
+        : 'PERCENT',
+    markupPercent: readNumber(rows, LOGISTICS_KEYS.markupPercent, 0),
+    markupFlatMvr: readNumber(rows, LOGISTICS_KEYS.markupFlatMvr, 0),
+    markupFlatUsd: readNumber(rows, LOGISTICS_KEYS.markupFlatUsd, 0),
+    commissionPercent: readNumber(rows, LOGISTICS_KEYS.commissionPercent, 0),
+  };
+};
+
 const writeSetting = (keyName, value, description) =>
   prisma.setting.upsert({
     where: { keyName },
@@ -167,9 +209,10 @@ const getRouteMarkup = async (routeId) => {
 // GET /commissions — global settings plus every configured markup
 const getCommissionConfig = async (req, res) => {
   try {
-    const [globals, charter, markups] = await Promise.all([
+    const [globals, charter, logistics, markups] = await Promise.all([
       loadGlobals(),
       loadCharter(),
+      loadLogistics(),
       prisma.routeMarkup.findMany({
         include: {
           route: {
@@ -186,6 +229,7 @@ const getCommissionConfig = async (req, res) => {
       data: {
         global: globals,
         charter,
+        logistics,
         markups: markups.map((m) => ({
           id: m.id,
           routeId: m.routeId,
@@ -341,6 +385,47 @@ const updateCharterCommission = async (req, res) => {
   }
 };
 
+// POST /commissions/logistics — markup on top, commission out of the quote
+const updateLogisticsCommission = async (req, res) => {
+  try {
+    const data = logisticsSchema.parse(req.body || {});
+
+    const DESCRIPTIONS = {
+      markupMode: 'Logistics markup: PERCENT or FLAT',
+      markupPercent: 'Logistics markup added on top of the operator quote, as a %',
+      markupFlatMvr: 'Logistics markup added on top of MVR quotes',
+      markupFlatUsd: 'Logistics markup added on top of USD quotes',
+      commissionPercent: 'Logistics commission taken from the operator quote, as a %',
+    };
+
+    const writes = Object.keys(LOGISTICS_KEYS)
+      .filter((field) => data[field] !== undefined)
+      .map((field) => writeSetting(LOGISTICS_KEYS[field], data[field], DESCRIPTIONS[field]));
+
+    if (writes.length === 0) {
+      return res.status(400).json({ success: false, message: 'Nothing to update' });
+    }
+
+    await Promise.all(writes);
+    return res.json({
+      success: true,
+      message: 'Logistics commission updated',
+      data: await loadLogistics(),
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const detail = error.errors
+        .map((e) => `${e.path.join('.') || 'form'}: ${e.message}`)
+        .join('; ');
+      return res.status(400).json({ success: false, message: `Validation error — ${detail}` });
+    }
+    console.error('updateLogisticsCommission error:', error);
+    return res
+      .status(500)
+      .json({ success: false, message: error.message || 'Error updating logistics commission' });
+  }
+};
+
 // GET /commissions/route/:routeId — always resolves, zeros when unset
 const getRouteMarkupHandler = async (req, res) => {
   try {
@@ -428,6 +513,7 @@ module.exports = {
   getCommissionConfig,
   updateGlobalCommission,
   updateCharterCommission,
+  updateLogisticsCommission,
   getRouteMarkupHandler,
   upsertRouteMarkup,
   deleteRouteMarkup,

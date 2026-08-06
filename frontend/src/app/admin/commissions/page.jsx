@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import {
   Loader2,
+  Package,
   Percent,
   Route as RouteIcon,
   Save,
@@ -48,6 +49,22 @@ const asLiveGroup = (g) => ({
   percent: String(g?.percent ?? 0),
   flatMvr: String(g?.flatMvr ?? 0),
   flatUsd: String(g?.flatUsd ?? 0),
+});
+
+const BLANK_LOGISTICS = {
+  markupMode: "PERCENT",
+  markupPercent: "0",
+  markupFlatMvr: "0",
+  markupFlatUsd: "0",
+  commissionPercent: "0",
+};
+
+const asLogistics = (l) => ({
+  markupMode: l?.markupMode === "FLAT" ? "FLAT" : "PERCENT",
+  markupPercent: String(l?.markupPercent ?? 0),
+  markupFlatMvr: String(l?.markupFlatMvr ?? 0),
+  markupFlatUsd: String(l?.markupFlatUsd ?? 0),
+  commissionPercent: String(l?.commissionPercent ?? 0),
 });
 
 /** The figure a worked example is built from. Round, and plausibly a charter. */
@@ -196,6 +213,143 @@ function QuoteCommissionDial({ group, onChange }) {
 }
 
 /**
+ * Logistics takes both a markup and a commission, and the worked example has
+ * to carry the whole story: the customer pays the operator directly, so what
+ * Myboat is owed is invoiced back afterwards rather than deducted anywhere.
+ */
+function LogisticsDials({ value, onChange }) {
+  const isFlat = value.markupMode === "FLAT";
+  const markup = isFlat
+    ? Number(value.markupFlatMvr || 0)
+    : (SAMPLE * Number(value.markupPercent || 0)) / 100;
+  const commission = (SAMPLE * Number(value.commissionPercent || 0)) / 100;
+  const owed = markup + commission;
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <div className="space-y-3 rounded-lg border p-4">
+        <div>
+          <Label className="text-sm font-semibold">Markup</Label>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Added on top of the operator&apos;s quote. The customer pays it.
+          </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Charge as</Label>
+            <Select value={value.markupMode} onValueChange={onChange("markupMode")}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PERCENT">Percentage of the quote</SelectItem>
+                <SelectItem value="FLAT">Flat amount per order</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {isFlat ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Flat (MVR)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={value.markupFlatMvr}
+                  onChange={(e) => onChange("markupFlatMvr")(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Flat (USD)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={value.markupFlatUsd}
+                  onChange={(e) => onChange("markupFlatUsd")(e.target.value)}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Percentage</Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.01"
+                  value={value.markupPercent}
+                  onChange={(e) => onChange("markupPercent")(e.target.value)}
+                />
+                <Percent className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-3 rounded-lg border p-4">
+        <div>
+          <Label className="text-sm font-semibold">Commission</Label>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Taken out of the operator&apos;s quote. The operator absorbs it.
+          </p>
+        </div>
+        <div className="space-y-1.5 sm:max-w-[220px]">
+          <Label className="text-xs">Percentage of the quote</Label>
+          <div className="relative">
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              step="0.01"
+              value={value.commissionPercent}
+              onChange={(e) => onChange("commissionPercent")(e.target.value)}
+            />
+            <Percent className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
+          </div>
+        </div>
+      </div>
+
+      {/* The whole flow in one worked example — the part that surprises people
+          is that the operator holds Myboat's share until they settle it. */}
+      <div className="rounded-lg border bg-muted/30 p-4 text-xs lg:col-span-2">
+        <p className="mb-2 font-medium">On a quote of {mvr(SAMPLE)}:</p>
+        <dl className="grid gap-1.5 sm:grid-cols-2">
+          <ExampleRow label="Customer pays the operator" value={mvr(SAMPLE + markup)} />
+          <ExampleRow label="Operator keeps" value={mvr(SAMPLE - commission)} />
+          <ExampleRow label="Markup (customer&apos;s money)" value={mvr(markup)} />
+          <ExampleRow label="Commission (operator&apos;s share)" value={mvr(commission)} />
+        </dl>
+        <p className="mt-2 border-t pt-2">
+          {owed > 0 ? (
+            <>
+              Myboat invoices the operator{" "}
+              <b className="text-emerald-600">{mvr(owed)}</b> when the order
+              completes.
+            </>
+          ) : (
+            "Nothing is invoiced — both dials are at zero."
+          )}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ExampleRow({ label, value }) {
+  return (
+    <div className="flex justify-between gap-4">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="font-medium">{value}</dd>
+    </div>
+  );
+}
+
+/**
  * Platform economics: the global cut, the ceilings an operator may grant an
  * agent, and per-route markups.
  *
@@ -221,6 +375,8 @@ export default function CommissionsPage() {
   });
   const [charter, setCharter] = useState(BLANK_CHARTER);
   const [savingCharter, setSavingCharter] = useState(false);
+  const [logistics, setLogistics] = useState(BLANK_LOGISTICS);
+  const [savingLogistics, setSavingLogistics] = useState(false);
   const [markups, setMarkups] = useState([]);
   const [routes, setRoutes] = useState([]);
   const [draft, setDraft] = useState(BLANK_MARKUP);
@@ -245,6 +401,7 @@ export default function CommissionsPage() {
           commissionPercent: String(d?.charter?.quote?.commissionPercent ?? 0),
         },
       });
+      setLogistics(asLogistics(d?.logistics));
       setMarkups(d?.markups || []);
     }
     if (rts.status === "fulfilled") {
@@ -324,6 +481,25 @@ export default function CommissionsPage() {
     }
   };
 
+  const saveLogistics = async () => {
+    try {
+      setSavingLogistics(true);
+      await api.post("/commissions/logistics", {
+        markupMode: logistics.markupMode,
+        markupPercent: Number(logistics.markupPercent || 0),
+        markupFlatMvr: Number(logistics.markupFlatMvr || 0),
+        markupFlatUsd: Number(logistics.markupFlatUsd || 0),
+        commissionPercent: Number(logistics.commissionPercent || 0),
+      });
+      toast.success("Logistics commission saved");
+      await load();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Could not save logistics commission");
+    } finally {
+      setSavingLogistics(false);
+    }
+  };
+
   const saveMarkup = async (row) => {
     if (!row.routeId) {
       toast.error("Choose a route first");
@@ -363,6 +539,7 @@ export default function CommissionsPage() {
   const setG = (k) => (e) => setGlobals((g) => ({ ...g, [k]: e.target.value }));
   const setC = (dial, k) => (v) =>
     setCharter((c) => ({ ...c, [dial]: { ...c[dial], [k]: v } }));
+  const setL = (k) => (v) => setLogistics((l) => ({ ...l, [k]: v }));
   const setD = (k) => (e) => setDraft((d) => ({ ...d, [k]: e.target.value }));
 
   const routeLabel = (r) => `${r.sourceCity} → ${r.destinationCity}`;
@@ -630,6 +807,35 @@ export default function CommissionsPage() {
               <Save className="h-4 w-4" />
             )}
             Save charter commission
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* ----------------------------- logistics -------------------------- */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Package className="h-4 w-4 text-sky-500" />
+            Cargo &amp; Logistics
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Logistics customers pay the operator&apos;s own bank account
+            directly — Myboat never holds the money. So our share is not taken
+            here: it is invoiced to the operator once the order completes, and
+            settled from <b>Finance → Myboat Invoices</b>.
+          </p>
+
+          <LogisticsDials value={logistics} onChange={setL} />
+
+          <Button onClick={saveLogistics} disabled={savingLogistics} className="gap-2">
+            {savingLogistics ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            Save logistics commission
           </Button>
         </CardContent>
       </Card>

@@ -6,6 +6,7 @@ const {
   getCommissionConfig,
   updateGlobalCommission,
   updateCharterCommission,
+  updateLogisticsCommission,
   getRouteMarkupHandler,
   upsertRouteMarkup,
   deleteRouteMarkup,
@@ -18,6 +19,7 @@ router.use(isAuthenticated, isAdmin);
 router.get('/', getCommissionConfig);
 router.post('/global', updateGlobalCommission);
 router.post('/charter', updateCharterCommission);
+router.post('/logistics', updateLogisticsCommission);
 
 // Static segment first so "route" is never matched as a markup id.
 router.get('/route/:routeId', getRouteMarkupHandler);
