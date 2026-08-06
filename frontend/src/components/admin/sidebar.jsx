@@ -149,6 +149,12 @@ const adminRoutes = [
     group: "Finance",
     items: [
       {
+        label: "Commissions",
+        icon: Wallet,
+        href: "/admin/commissions",
+        color: "text-sky-500",
+      },
+      {
         label: "Categories",
         icon: Tags,
         href: "/admin/categories",
