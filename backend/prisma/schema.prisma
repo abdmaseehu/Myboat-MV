@@ -899,3 +899,30 @@ model CustomPage {
     @@index([updatedAt(sort: Desc)], map: "custom_pages_updated_idx")
     @@map("custom_pages")
 }
+
+/// A link in the public site's navigation.
+///
+/// These were an array in main-nav.jsx, so adding one meant a deploy. Now that
+/// pages can be written from the dashboard, they have to be linkable from it
+/// too.
+///
+/// Flat on purpose: the header is a single row of links, and a parent pointer
+/// would buy a dropdown nobody has asked for at the cost of every read.
+model NavMenuItem {
+    id            String   @id @default(dbgenerated("gen_random_uuid()::text"))
+    label         String   @db.VarChar(80)
+    /// An internal path ('/charter', '/pages/maldives/huraa-guide') or a full
+    /// external URL. Stored as typed; the renderer decides how to link it.
+    url           String   @db.VarChar(255)
+    /// HEADER or FOOTER.
+    location      String   @default("HEADER") @db.VarChar(10)
+    /// Sparse (10, 20, 30…) so one item can be moved without rewriting the rest.
+    sortOrder     Int      @default(0) @map("sort_order")
+    isVisible     Boolean  @default(true) @map("is_visible")
+    openInNewTab  Boolean  @default(false) @map("open_in_new_tab")
+    createdAt     DateTime @default(now()) @map("created_at")
+    updatedAt     DateTime @updatedAt @map("updated_at")
+
+    @@index([location, sortOrder], map: "nav_menu_items_location_idx")
+    @@map("nav_menu_items")
+}

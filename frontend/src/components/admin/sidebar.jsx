@@ -163,12 +163,6 @@ const adminRoutes = [
         color: "text-sky-500",
       },
       {
-        label: "Pages",
-        icon: FileCode,
-        href: "/admin/pages",
-        color: "text-sky-500",
-      },
-      {
         label: "Categories",
         icon: Tags,
         href: "/admin/categories",
@@ -183,14 +177,32 @@ const adminRoutes = [
     ],
   },
   {
-    group: "Settings",
+    // Everything that changes what the public site says, in one place.
+    group: "Content",
     items: [
       {
-        label: "Custom Fields",
+        label: "Pages",
+        icon: FileCode,
+        href: "/admin/pages",
+        color: "text-sky-500",
+      },
+      {
+        label: "Menus",
+        icon: Menu,
+        href: "/admin/menus",
+        color: "text-sky-500",
+      },
+      {
+        label: "Site Content",
         icon: Database,
         href: "/admin/custom-fields",
         color: "text-sky-500",
       },
+    ],
+  },
+  {
+    group: "Settings",
+    items: [
       {
         label: "Embed Builder",
         icon: Code2,

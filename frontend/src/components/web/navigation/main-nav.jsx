@@ -4,32 +4,33 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-
-const routes = [
-  { href: "/", label: "Home" },
-  { href: "/bus-tickets", label: "Ferry" },
-  { href: "/charter", label: "Charter" },
-  { href: "/logistics", label: "Logistics" },
-  { href: "/about", label: "About" },
-  { href: "/contact", label: "Contact" },
-];
+import { useNavMenu } from "@/hooks/use-nav-menu";
 
 export function MainNav({ variant = "auto" }) {
   const pathname = usePathname();
   const isLight = variant === "light";
+  // Editable in Admin -> Content -> Menus; falls back to the built-in list.
+  const routes = useNavMenu("HEADER");
 
   return (
     <nav className="hidden md:flex items-center gap-1">
       {routes.map((route) => {
+        const href = route.url;
+        // An external link is never "the page you are on".
+        const external = /^(https?:)?\/\//i.test(href);
         const active =
-          route.href === "/"
+          external || !href
+            ? false
+            : href === "/"
             ? pathname === "/"
-            : pathname.startsWith(route.href);
+            : pathname.startsWith(href);
 
         return (
           <Link
-            key={route.href}
-            href={route.href}
+            key={route.id || href}
+            href={href}
+            target={route.openInNewTab ? "_blank" : undefined}
+            rel={route.openInNewTab ? "noopener noreferrer" : undefined}
             className={cn(
               "relative px-4 py-2 rounded-full text-[15px] font-medium tracking-wide transition-colors duration-200",
               isLight

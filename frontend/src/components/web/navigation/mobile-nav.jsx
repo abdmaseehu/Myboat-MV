@@ -7,16 +7,7 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { LogOut, LayoutDashboard, Mail, Phone, MapPin, Instagram, Facebook, Twitter } from "lucide-react";
-
-const routes = [
-  { href: "/", label: "Home" },
-  { href: "/bus-tickets", label: "Ferry" },
-  { href: "/charter", label: "Private Charter" },
-  { href: "/logistics", label: "Logistics" },
-  { href: "/services", label: "Services" },
-  { href: "/about", label: "About" },
-  { href: "/contact", label: "Contact" },
-];
+import { useNavMenu } from "@/hooks/use-nav-menu";
 
 const overlayVariants = {
   hidden: { opacity: 0 },
@@ -41,6 +32,8 @@ const itemVariants = {
 
 export function MobileNav({ isOpen, user, onLogout, onDashboard, onClose }) {
   const pathname = usePathname();
+  // The same menu the desktop header reads — one list, one place to edit it.
+  const routes = useNavMenu("HEADER");
 
   return (
     <AnimatePresence>
@@ -77,12 +70,20 @@ export function MobileNav({ isOpen, user, onLogout, onDashboard, onClose }) {
             >
               <div className="space-y-1">
                 {routes.map((route) => {
+                  const href = route.url;
+                  const external = /^(https?:)?\/\//i.test(href);
                   const active =
-                    route.href === "/" ? pathname === "/" : pathname.startsWith(route.href);
+                    external || !href
+                      ? false
+                      : href === "/"
+                      ? pathname === "/"
+                      : pathname.startsWith(href);
                   return (
-                    <motion.div key={route.href} variants={itemVariants}>
+                    <motion.div key={route.id || href} variants={itemVariants}>
                       <Link
-                        href={route.href}
+                        href={href}
+                        target={route.openInNewTab ? "_blank" : undefined}
+                        rel={route.openInNewTab ? "noopener noreferrer" : undefined}
                         onClick={onClose}
                         className={cn(
                           "block py-3 text-2xl transition-colors",
