@@ -60,8 +60,20 @@ const STATUS_STYLES = {
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString() : "-");
 
-/** Slips are served from the API host, same as every other upload. */
-const slipUrl = (file) => `${process.env.NEXT_PUBLIC_ROOT_URL}/uploads/${file}`;
+/**
+ * A slip shows the customer's bank account, so it has no public URL. The
+ * server checks who is asking and hands back a short-lived signed link.
+ */
+const openSlip = async (id) => {
+  try {
+    const res = await api.get(`/logistics-requests/${id}/slip`);
+    const url = res?.data?.data?.url;
+    if (!url) throw new Error("No slip available");
+    window.open(url, "_blank", "noopener,noreferrer");
+  } catch (e) {
+    toast.error(e?.response?.data?.message || "Could not open the slip");
+  }
+};
 
 export default function LogisticsRequestsPage() {
   const { user } = useAuth();
@@ -346,14 +358,13 @@ export default function LogisticsRequestsPage() {
                     {/* The customer paid into the operator's own account, so
                         the slip is the only thing to check it against. */}
                     {r.paymentSlip && (
-                      <a
-                        href={slipUrl(r.paymentSlip)}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        type="button"
+                        onClick={() => openSlip(r.id)}
                         className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 px-2 py-0.5 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400"
                       >
                         <Receipt className="h-3.5 w-3.5" /> View transfer slip
-                      </a>
+                      </button>
                     )}
                   </div>
                   {r.quotedPrice && (

@@ -4,6 +4,7 @@ const { redactForViewer, redactListForViewer } = require('../../utils/redact');
 const { getPlatformPaymentDetails } = require('../../utils/platform-bank');
 const { loadLogisticsConfig, applyLogisticsPricing } = require('../../utils/fare-engine');
 const { raiseInvoiceForOrder } = require('../../utils/platform-invoice');
+const { signedUrl, removeObject } = require('../../utils/storage');
 const prisma = new PrismaClient();
 
 const getVendorForUser = async (userId) => {
@@ -740,8 +741,48 @@ const submitOrder = async (req, res) => {
   }
 };
 
+/**
+ * GET /logistics-requests/:id/slip
+ *
+ * A transfer slip shows the customer's bank account, so it is not served from
+ * a public URL the way a vessel photo is. This mints a short-lived signed link
+ * and hands it only to the customer who uploaded it, the operator who has to
+ * check it, or an administrator.
+ */
+const getSlipUrl = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const request = await prisma.logisticsRequest.findUnique({
+      where: { id },
+      select: { id: true, userId: true, vendorId: true, paymentSlip: true },
+    });
+    if (!request) {
+      return res.status(404).json({ success: false, message: 'Request not found' });
+    }
+    if (!request.paymentSlip) {
+      return res.status(404).json({ success: false, message: 'No slip has been uploaded' });
+    }
+
+    let allowed = req.user.role === 'ADMIN' || request.userId === req.user.id;
+    if (!allowed && req.user.role === 'VENDOR' && request.vendorId) {
+      const vendor = await getVendorForUser(req.user.id);
+      allowed = !!vendor && vendor.id === request.vendorId;
+    }
+    if (!allowed) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
+    const url = await signedUrl(request.paymentSlip);
+    return res.json({ success: true, data: { url } });
+  } catch (error) {
+    console.error('getSlipUrl logistics error', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   submitOrder,
+  getSlipUrl,
   getMyRequests,
   getRequestsIRequested,
   getRequestById,

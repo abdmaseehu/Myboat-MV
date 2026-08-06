@@ -12,6 +12,7 @@ const {
   getPaymentInfo,
   markPaid,
   submitOrder,
+  getSlipUrl,
 } = require('../../controllers/v1/logistics-request.controller');
 const { isAuthenticated } = require('../../middleware/auth.middleware');
 const { isAdmin } = require('../../middleware/role.middleware');
@@ -36,7 +37,7 @@ router.post('/:id/mark-paid', markPaid);
 router.post(
   '/:id/submit-order',
   (req, res, next) =>
-    uploadSlip.single('slip')(req, res, (err) => {
+    uploadSlip.raw.single('slip')(req, res, (err) => {
       if (!err) return next();
       const message =
         err.code === 'LIMIT_FILE_SIZE'
@@ -44,8 +45,13 @@ router.post(
           : err.message || 'Could not read that file';
       return res.status(400).json({ success: false, message });
     }),
+  uploadSlip.persistSlip,
   submitOrder
 );
+
+// The slip carries the customer's bank details, so it is never a public URL.
+// This hands back a short-lived signed link, and only to someone entitled to it.
+router.get('/:id/slip', getSlipUrl);
 router.patch('/:id/quote', sendQuote);
 router.patch('/:id', updateRequest);
 router.delete('/:id', deleteRequest);

@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
+const { removeObject } = require('../../utils/storage');
 const { z } = require('zod');
 const fs = require('fs').promises;
 const path = require('path');
@@ -250,9 +251,10 @@ const updateVendor = async (req, res) => {
     });
 
     if (!existingVendor) {
-      // Clean up uploaded file if exists
-      if (req.file) {
-        await fs.unlink(req.file.path).catch(console.error);
+      // Clean up the upload: it is already in storage by this point, and
+      // nothing will ever reference it.
+      if (req.file?.filename) {
+        await removeObject(req.file.filename).catch(console.error);
       }
       return res.status(404).json({
         success: false,
