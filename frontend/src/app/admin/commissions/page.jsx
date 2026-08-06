@@ -24,7 +24,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  AlertTriangle,
   Loader2,
   Percent,
   Route as RouteIcon,
@@ -58,6 +57,7 @@ export default function CommissionsPage() {
   const [globals, setGlobals] = useState({
     globalPlatformPercentage: "",
     globalPlatformFlatFee: "",
+    globalPlatformFlatFeeUsd: "",
     agentMaxCommissionPercent: "",
     agentMaxDiscountPercent: "",
   });
@@ -75,6 +75,7 @@ export default function CommissionsPage() {
       setGlobals({
         globalPlatformPercentage: String(d?.global?.globalPlatformPercentage ?? 0),
         globalPlatformFlatFee: String(d?.global?.globalPlatformFlatFee ?? 0),
+        globalPlatformFlatFeeUsd: String(d?.global?.globalPlatformFlatFeeUsd ?? 0),
         agentMaxCommissionPercent: String(d?.global?.agentMaxCommissionPercent ?? 25),
         agentMaxDiscountPercent: String(d?.global?.agentMaxDiscountPercent ?? 25),
       });
@@ -121,6 +122,7 @@ export default function CommissionsPage() {
       await api.post("/commissions/global", {
         globalPlatformPercentage: Number(globals.globalPlatformPercentage || 0),
         globalPlatformFlatFee: Number(globals.globalPlatformFlatFee || 0),
+        globalPlatformFlatFeeUsd: Number(globals.globalPlatformFlatFeeUsd || 0),
         agentMaxCommissionPercent: Number(globals.agentMaxCommissionPercent || 0),
         agentMaxDiscountPercent: Number(globals.agentMaxDiscountPercent || 0),
       });
@@ -217,16 +219,6 @@ export default function CommissionsPage() {
         </p>
       </div>
 
-      {/* Honest about the current state rather than implying these already bite. */}
-      <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:bg-amber-900/10">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-        <p className="text-amber-900 dark:text-amber-200">
-          The platform cut and route markups are stored here but are not yet
-          applied to booking totals. The agent ceilings below <b>are</b> live and
-          enforced on every approval.
-        </p>
-      </div>
-
       <div className="grid gap-4 lg:grid-cols-2">
         {/* ------------------------------ globals ------------------------- */}
         <Card>
@@ -234,24 +226,31 @@ export default function CommissionsPage() {
             <CardTitle className="text-base">Platform Cut</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="pct">Percentage of each booking</Label>
+              <div className="relative">
+                <Input
+                  id="pct"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.01"
+                  value={globals.globalPlatformPercentage}
+                  onChange={setG("globalPlatformPercentage")}
+                />
+                <Percent className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Taken from the public price — the operator&apos;s fare plus the
+                route markup.
+              </p>
+            </div>
+
+            {/* Two fees, not one. A single number would charge the same figure
+                on an MVR fare and a USD fare — a silent 1:1 conversion. */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="pct">Percentage of each booking</Label>
-                <div className="relative">
-                  <Input
-                    id="pct"
-                    type="number"
-                    min={0}
-                    max={100}
-                    step="0.01"
-                    value={globals.globalPlatformPercentage}
-                    onChange={setG("globalPlatformPercentage")}
-                  />
-                  <Percent className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="flat">Flat fee per booking</Label>
+                <Label htmlFor="flat">Flat fee per MVR booking</Label>
                 <Input
                   id="flat"
                   type="number"
@@ -260,9 +259,19 @@ export default function CommissionsPage() {
                   value={globals.globalPlatformFlatFee}
                   onChange={setG("globalPlatformFlatFee")}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Charged in the fare&apos;s own currency.
-                </p>
+                <p className="text-xs text-muted-foreground">Local and expat fares.</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="flatUsd">Flat fee per USD booking</Label>
+                <Input
+                  id="flatUsd"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={globals.globalPlatformFlatFeeUsd}
+                  onChange={setG("globalPlatformFlatFeeUsd")}
+                />
+                <p className="text-xs text-muted-foreground">Tourist fares.</p>
               </div>
             </div>
 

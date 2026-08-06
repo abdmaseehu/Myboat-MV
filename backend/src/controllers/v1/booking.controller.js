@@ -2,7 +2,13 @@ const getStripeInstance = require('../../config/stripe');
 const { z } = require('zod');
 const { PrismaClient } = require('@prisma/client');
 const { getCurrencyForCategory } = require('../../utils/currency');
-const { resolveAgentTerms, applyAgentTerms } = require('../../utils/agent-pricing');
+const { resolveAgentTerms } = require('../../utils/agent-pricing');
+const {
+  loadPlatformConfig,
+  loadRouteMarkup,
+  computeFare,
+  currencyForTier,
+} = require('../../utils/fare-engine');
 const prisma = new PrismaClient();
 
 // Validation schema for seat numbers
@@ -261,15 +267,58 @@ const createBooking = async (req, res) => {
         ? 'PENDING'
         : 'PROCESSING');
 
-    // Agent net billing is computed here, never taken from the request.
-    // A client could otherwise post agentDiscount: 99 and pay nothing, or claim
-    // a partnership that isn't theirs.
+    // ---------------------------------------------------------------- fare
+    // The whole invoice is assembled server-side from the operator's published
+    // tier price, Myboat's markup for the route, and the platform cut. Nothing
+    // about the money is taken from the request: a client could otherwise post
+    // agentDiscount: 99, or a totalAmount of its choosing, and pay that.
     const agentTerms = await resolveAgentTerms(prisma, {
       actor: req.user,
       vendorId: validatedData.vendorId,
       requestedAgentId: validatedData.agentId,
     });
-    const agentMoney = applyAgentTerms(validatedData.totalAmount, agentTerms);
+
+    const [platform, routeMarkup] = await Promise.all([
+      loadPlatformConfig(prisma),
+      loadRouteMarkup(prisma, validatedData.routeId),
+    ]);
+
+    const tier = validatedData.passengerCategory || 'LOCAL';
+    const tierField =
+      tier === 'TOURIST'
+        ? 'priceTouristUsd'
+        : tier === 'EXPAT'
+        ? 'priceExpatMvr'
+        : 'priceLocalMvr';
+    const markupField =
+      tier === 'TOURIST' ? 'markupTourist' : tier === 'EXPAT' ? 'markupExpat' : 'markupLocal';
+
+    // The operator's own price for this departure is the only trustworthy base.
+    const scheduleRow = validatedData.scheduleId
+      ? await prisma.busSchedule.findUnique({
+          where: { id: validatedData.scheduleId },
+          select: { priceLocalMvr: true, priceExpatMvr: true, priceTouristUsd: true },
+        })
+      : null;
+
+    const seatCount = Math.max(1, validatedData.seatNumbers.length);
+    // Without a schedule to price against (manual and legacy bookings) fall back
+    // to the submitted total, treated as already-public and markup-free.
+    const hasBase = scheduleRow && scheduleRow[tierField] != null;
+    const basePerSeat = hasBase
+      ? Number(scheduleRow[tierField])
+      : Number(validatedData.totalAmount || 0) / seatCount;
+    const markupPerSeat = hasBase ? routeMarkup[markupField] : 0;
+
+    const fare = computeFare({
+      basePerSeat,
+      markupPerSeat,
+      seats: seatCount,
+      tier,
+      platform,
+      agentDiscountPercent: agentTerms.discountPercent,
+      agentCommissionPercent: agentTerms.commissionPercent,
+    });
 
     // Create booking record
     const booking = await prisma.booking.create({
@@ -282,10 +331,11 @@ const createBooking = async (req, res) => {
         boardingPointId: validatedData.boardingPointId || null,
         droppingPointId: validatedData.droppingPointId || null,
         bookingDate: validatedData.bookingDate,
-        totalAmount: validatedData.totalAmount,
-        // Server-computed: the client's discountAmount/finalAmount are ignored.
-        discountAmount: agentMoney.discountAmount,
-        finalAmount: agentMoney.finalAmount,
+        // The public price for these seats, before the flat fee and any
+        // agent discount. Server-computed; the client's figures are ignored.
+        totalAmount: fare.gross,
+        discountAmount: fare.agentDiscount,
+        finalAmount: fare.customerPays,
         paymentMethod: validatedData.paymentMethod,
         seatNumbers: seatNumbersWithMeta,
         passengers: validatedData.passengers ?? undefined,
@@ -293,17 +343,20 @@ const createBooking = async (req, res) => {
         contactPhone: validatedData.contactPhone || validatedData.customerPhone || null,
         passengerCategory: validatedData.passengerCategory,
         // Currency is ALWAYS derived from passenger category (MVR/USD independent).
-        currency:
-          validatedData.currency ||
-          (typeof getCurrencyForCategory === 'function'
-            ? getCurrencyForCategory(validatedData.passengerCategory)
-            : validatedData.passengerCategory === 'TOURIST' ? 'USD' : 'MVR'),
+        // Currency follows the tier and nothing else: LOCAL and EXPAT settle in
+        // MVR, TOURIST in USD. Never read from the request.
+        currency: fare.currency,
         isManual: validatedData.isManual || false,
         agentId: agentTerms.agentId,
-        agentDiscount: agentMoney.discountAmount,
+        agentDiscount: fare.agentDiscount,
         // Recorded for the operator to settle with the agent directly — the
         // platform holds no payout ledger.
-        agentCommission: agentMoney.commissionAmount,
+        agentCommission: fare.agentCommission,
+        // Who the money belongs to, recorded now rather than recomputed later
+        // from settings that may since have changed.
+        markupAmount: fare.markupTotal,
+        platformFeeAmount: fare.platformPercentAmount + fare.platformFlatAmount,
+        vendorNetAmount: fare.vendorNet,
         status: initialStatus,
         paymentStatus: initialPaymentStatus,
         paymentIntentId: paymentIntent?.id,

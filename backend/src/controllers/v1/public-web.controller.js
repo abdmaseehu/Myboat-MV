@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { z } = require("zod");
+const { loadRouteMarkup, applyMarkupToSchedule } = require("../../utils/fare-engine");
 
 // Get all unique source and destination cities
 const getCities = async (req, res) => {
@@ -100,11 +101,17 @@ const getVehiclesByRouteId = async (req, res) => {
       const t = new Date(d);
       return t.getUTCHours() * 60 + t.getUTCMinutes();
     };
+    // Quote the PUBLIC price: the operator's fare plus Myboat's markup for this
+    // route. Applied here so search, the seat picker and checkout all read the
+    // same numbers off the schedule rather than each adding the markup itself.
+    const markup = await loadRouteMarkup(prisma, routeId);
+
     vehicles.forEach((v) => {
       if (Array.isArray(v.schedules)) {
         v.schedules.sort(
           (a, b) => minutesOfDay(a.departureTime) - minutesOfDay(b.departureTime)
         );
+        v.schedules = v.schedules.map((sch) => applyMarkupToSchedule(sch, markup));
       }
     });
 

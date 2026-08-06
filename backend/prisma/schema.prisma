@@ -453,6 +453,12 @@ model Booking {
     agentId            String?        @map("agent_id")
     agentDiscount      Decimal?       @default(0) @map("agent_discount") @db.Decimal(10, 2)
     agentCommission    Decimal?       @default(0) @map("agent_commission") @db.Decimal(10, 2)
+    // Fare ledger, all in this booking's own currency — MVR and USD never mix.
+    // markup + platformFee is Myboat's take; vendorNet is the operator's.
+    // markupAmount + platformFeeAmount + vendorNetAmount == finalAmount.
+    markupAmount       Decimal?       @default(0) @map("markup_amount") @db.Decimal(10, 2)
+    platformFeeAmount  Decimal?       @default(0) @map("platform_fee_amount") @db.Decimal(10, 2)
+    vendorNetAmount    Decimal?       @default(0) @map("vendor_net_amount") @db.Decimal(10, 2)
     checkedInAt        DateTime?      @map("checked_in_at")
     agent              OperatorAgent? @relation(fields: [agentId], references: [id])
     checkin            Checkin?

@@ -19,6 +19,7 @@ const prisma = new PrismaClient();
 const SETTING_KEYS = {
   percentage: 'GLOBAL_PLATFORM_PERCENTAGE',
   flatFee: 'GLOBAL_PLATFORM_FLAT_FEE',
+  flatFeeUsd: 'GLOBAL_PLATFORM_FLAT_FEE_USD',
   maxCommission: 'AGENT_MAX_COMMISSION_PERCENT',
   maxDiscount: 'AGENT_MAX_DISCOUNT_PERCENT',
 };
@@ -42,6 +43,7 @@ const percentage = z.coerce
 const globalSchema = z.object({
   globalPlatformPercentage: percentage.optional(),
   globalPlatformFlatFee: money.optional(),
+  globalPlatformFlatFeeUsd: money.optional(),
   agentMaxCommissionPercent: percentage.optional(),
   agentMaxDiscountPercent: percentage.optional(),
 });
@@ -69,6 +71,7 @@ const loadGlobals = async () => {
   return {
     globalPlatformPercentage: readNumber(rows, SETTING_KEYS.percentage, 0),
     globalPlatformFlatFee: readNumber(rows, SETTING_KEYS.flatFee, 0),
+    globalPlatformFlatFeeUsd: readNumber(rows, SETTING_KEYS.flatFeeUsd, 0),
     agentMaxCommissionPercent: readNumber(rows, SETTING_KEYS.maxCommission, 25),
     agentMaxDiscountPercent: readNumber(rows, SETTING_KEYS.maxDiscount, 25),
   };
@@ -159,6 +162,15 @@ const updateGlobalCommission = async (req, res) => {
           SETTING_KEYS.flatFee,
           data.globalPlatformFlatFee,
           'Flat platform fee added to every booking'
+        )
+      );
+    }
+    if (data.globalPlatformFlatFeeUsd !== undefined) {
+      writes.push(
+        writeSetting(
+          SETTING_KEYS.flatFeeUsd,
+          data.globalPlatformFlatFeeUsd,
+          'Flat platform fee added to every USD booking'
         )
       );
     }
