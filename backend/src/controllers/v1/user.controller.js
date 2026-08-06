@@ -13,7 +13,10 @@ const registerSchema = z.object({
   mobile: z.string().min(10, 'Mobile number must be at least 10 characters'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
-  role: z.enum(['ADMIN', 'VENDOR', 'USER']).optional(),
+  // Only self-service roles may be chosen at signup. ADMIN and VENDOR are
+  // granted by an administrator — accepting them here let anyone POST
+  // role: 'ADMIN' to the public endpoint and mint themselves an admin account.
+  role: z.enum(['USER', 'AGENT']).optional(),
 });
 
 const loginSchema = z.object({
@@ -28,7 +31,7 @@ const userUpdateSchema = z.object({
   mobile: z.string().min(10, 'Mobile number must be at least 10 characters').optional(),
   password: z.string().min(6, 'Password must be at least 6 characters').optional(),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
-  role: z.enum(['ADMIN', 'VENDOR', 'USER']).optional(),
+  role: z.enum(['ADMIN', 'VENDOR', 'USER', 'AGENT']).optional(),
   active: z.boolean().optional(),
   loginAttempts: z.number().min(0).optional(),
   loginAttemptsDate: z.date().optional().nullable(),
