@@ -40,32 +40,43 @@ const BLANK_MARKUP = { routeId: "", markupLocal: "", markupExpat: "", markupTour
 
 const BLANK_CHARTER = {
   live: { mode: "PERCENT", percent: "0", flatMvr: "0", flatUsd: "0" },
-  quote: { mode: "PERCENT", percent: "0", flatMvr: "0", flatUsd: "0" },
+  quote: { commissionPercent: "0" },
 };
 
-const asCharterGroup = (g) => ({
+const asLiveGroup = (g) => ({
   mode: g?.mode === "FLAT" ? "FLAT" : "PERCENT",
   percent: String(g?.percent ?? 0),
   flatMvr: String(g?.flatMvr ?? 0),
   flatUsd: String(g?.flatUsd ?? 0),
 });
 
+/** The figure a worked example is built from. Round, and plausibly a charter. */
+const SAMPLE = 5000;
+
+const mvr = (n) =>
+  `MVR ${Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+
 /**
- * One charter dial: a percentage of the operator's figure, or a flat amount.
+ * Published rates: Myboat's markup is added on top.
  *
- * Only the fields the chosen mode actually uses are shown — leaving both on
- * screen invites setting a percentage and a flat fee and expecting both.
+ * Only the fields the chosen mode uses are shown — leaving both on screen
+ * invites setting a percentage and a flat fee and expecting both.
  */
-function CharterDial({ title, hint, group, onChange, sample }) {
+function LiveRateDial({ group, onChange }) {
   const isFlat = group.mode === "FLAT";
-  const pct = Number(group.percent || 0);
-  const added = isFlat ? Number(group.flatMvr || 0) : (sample * pct) / 100;
+  const added = isFlat
+    ? Number(group.flatMvr || 0)
+    : (SAMPLE * Number(group.percent || 0)) / 100;
 
   return (
     <div className="space-y-3 rounded-lg border p-4">
       <div>
-        <Label className="text-sm font-semibold">{title}</Label>
-        <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
+        <Label className="text-sm font-semibold">Published rates</Label>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Trips an operator priced in advance, bookable instantly. Nobody has
+          been quoted anything yet, so our cut goes <b>on top</b> and the
+          operator still receives the figure they published.
+        </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -126,15 +137,59 @@ function CharterDial({ title, hint, group, onChange, sample }) {
       {/* A worked example beats a formula: the mistake this catches is setting
           40 in a percentage field and meaning forty rufiyaa. */}
       <p className="text-xs text-muted-foreground">
-        An operator price of <b>MVR {sample.toLocaleString()}</b> is sold at{" "}
-        <b className="text-emerald-600">
-          MVR {(sample + added).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-        </b>
+        A published rate of <b>{mvr(SAMPLE)}</b> sells at{" "}
+        <b className="text-emerald-600">{mvr(SAMPLE + added)}</b>
         {added > 0
-          ? ` — Myboat keeps ${added.toLocaleString(undefined, {
-              maximumFractionDigits: 2,
-            })}.`
+          ? ` — the operator still receives ${mvr(SAMPLE)}, Myboat keeps ${mvr(added)}.`
           : " — nothing added yet."}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Quotes: the commission comes out of the operator's figure.
+ *
+ * There is no flat option here. A quote is usually a price the operator has
+ * already given the customer, so the customer pays it exactly and our share is
+ * a percentage of it.
+ */
+function QuoteCommissionDial({ group, onChange }) {
+  const pct = Number(group.commissionPercent || 0);
+  const cut = (SAMPLE * pct) / 100;
+
+  return (
+    <div className="space-y-3 rounded-lg border p-4">
+      <div>
+        <Label className="text-sm font-semibold">Quoted trips</Label>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Trips the operator prices by hand, often after speaking to the
+          customer. The customer pays <b>exactly what the operator quoted</b>,
+          and our commission comes <b>out of</b> that figure.
+        </p>
+      </div>
+
+      <div className="space-y-1.5 sm:max-w-[220px]">
+        <Label className="text-xs">Commission</Label>
+        <div className="relative">
+          <Input
+            type="number"
+            min={0}
+            max={100}
+            step="0.01"
+            value={group.commissionPercent}
+            onChange={(e) => onChange("commissionPercent")(e.target.value)}
+          />
+          <Percent className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
+        </div>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        An operator quoting <b>{mvr(SAMPLE)}</b> bills the customer{" "}
+        <b className="text-emerald-600">{mvr(SAMPLE)}</b>
+        {cut > 0
+          ? ` — the operator receives ${mvr(SAMPLE - cut)} and Myboat keeps ${mvr(cut)}.`
+          : " — no commission set yet."}
       </p>
     </div>
   );
@@ -185,8 +240,10 @@ export default function CommissionsPage() {
         agentMaxDiscountPercent: String(d?.global?.agentMaxDiscountPercent ?? 25),
       });
       setCharter({
-        live: asCharterGroup(d?.charter?.live),
-        quote: asCharterGroup(d?.charter?.quote),
+        live: asLiveGroup(d?.charter?.live),
+        quote: {
+          commissionPercent: String(d?.charter?.quote?.commissionPercent ?? 0),
+        },
       });
       setMarkups(d?.markups || []);
     }
@@ -245,17 +302,18 @@ export default function CommissionsPage() {
   };
 
   const saveCharter = async () => {
-    const group = (g) => ({
-      mode: g.mode,
-      percent: Number(g.percent || 0),
-      flatMvr: Number(g.flatMvr || 0),
-      flatUsd: Number(g.flatUsd || 0),
-    });
     try {
       setSavingCharter(true);
       await api.post("/commissions/charter", {
-        live: group(charter.live),
-        quote: group(charter.quote),
+        live: {
+          mode: charter.live.mode,
+          percent: Number(charter.live.percent || 0),
+          flatMvr: Number(charter.live.flatMvr || 0),
+          flatUsd: Number(charter.live.flatUsd || 0),
+        },
+        quote: {
+          commissionPercent: Number(charter.quote.commissionPercent || 0),
+        },
       });
       toast.success("Charter commission saved");
       await load();
@@ -557,25 +615,12 @@ export default function CommissionsPage() {
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
             A charter is one boat for one trip, so it is priced whole rather
-            than per seat. These figures are added on top of the operator&apos;s
-            own price — the ferry cut above does not apply to charters.
+            than per seat. The ferry cut above does not apply to charters.
           </p>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <CharterDial
-              title="Published rates"
-              hint="Trips an operator has priced in advance, bookable instantly. Marked up in search, and again on the server when the booking is made."
-              group={charter.live}
-              onChange={(k) => setC("live", k)}
-              sample={5000}
-            />
-            <CharterDial
-              title="Quoted trips"
-              hint="Trips where the operator sends a price by hand. The customer sees their figure plus this markup; the operator still sees their own."
-              group={charter.quote}
-              onChange={(k) => setC("quote", k)}
-              sample={5000}
-            />
+            <LiveRateDial group={charter.live} onChange={(k) => setC("live", k)} />
+            <QuoteCommissionDial group={charter.quote} onChange={(k) => setC("quote", k)} />
           </div>
 
           <Button onClick={saveCharter} disabled={savingCharter} className="gap-2">

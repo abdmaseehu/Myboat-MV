@@ -2,26 +2,35 @@ const { PrismaClient } = require('@prisma/client');
 const { notify, getVendorUserId, notifyAdmins } = require('../../utils/notify');
 const { redactForViewer, redactListForViewer } = require('../../utils/redact');
 const { getPlatformPaymentDetails } = require('../../utils/platform-bank');
-const { loadCharterMarkup, applyCharterMarkup } = require('../../utils/fare-engine');
+const {
+  loadCharterConfig,
+  applyCharterMarkup,
+  applyCharterCommission,
+} = require('../../utils/fare-engine');
 const prisma = new PrismaClient();
 
 /**
- * Price a charter the customer will see.
+ * Price a charter, and record how it divides.
  *
- * The operator names their figure; Myboat's markup goes on top. `quotedPrice`
- * is the public number, and the operator's own is kept beside it so a payout
- * never has to be reverse-engineered from a percentage that has since changed.
+ * A published rate carries Myboat's markup on top of the operator's figure. A
+ * quote is charged a commission out of it instead, so the customer pays the
+ * number the operator named. Either way the split is stored rather than left
+ * to be reverse-engineered later from a percentage that may have changed.
  *
  * @param {'live'|'quote'} dial  published rate, or a per-request quote
  */
 const priceCharter = async (operatorAmount, currency, dial) => {
-  const cfg = await loadCharterMarkup(prisma);
-  const priced = applyCharterMarkup(operatorAmount, currency, cfg[dial]);
+  const cfg = await loadCharterConfig(prisma);
+  const priced =
+    dial === 'quote'
+      ? applyCharterCommission(operatorAmount, currency, cfg.quote)
+      : applyCharterMarkup(operatorAmount, currency, cfg.live);
   if (!priced) return null;
   return {
     quotedPrice: priced.publicPrice,
     vendorQuotedPrice: priced.operatorPrice,
-    platformMarkupAmount: priced.markup,
+    platformCutAmount: priced.platformCut,
+    vendorNetAmount: priced.vendorNet,
     quotedCurrency: priced.currency,
   };
 };
@@ -332,7 +341,8 @@ const sendQuote = async (req, res) => {
         : {
             quotedPrice: Number(quotedPrice),
             vendorQuotedPrice: Number(quotedPrice),
-            platformMarkupAmount: 0,
+            platformCutAmount: 0,
+            vendorNetAmount: Number(quotedPrice),
             quotedCurrency,
           };
 
@@ -411,7 +421,8 @@ const updateRequest = async (req, res) => {
     // server's to make. Accepting either from the body would let a PATCH
     // rewrite the markup to zero and keep the whole fare.
     delete data.vendorQuotedPrice;
-    delete data.platformMarkupAmount;
+    delete data.platformCutAmount;
+    delete data.vendorNetAmount;
     if (body.quotedPrice !== undefined && body.quotedPrice !== null && body.quotedPrice !== '') {
       const currency = body.quotedCurrency || request.quotedCurrency || 'MVR';
       Object.assign(
@@ -421,7 +432,8 @@ const updateRequest = async (req, res) => {
           : {
               quotedPrice: Number(body.quotedPrice),
               vendorQuotedPrice: Number(body.quotedPrice),
-              platformMarkupAmount: 0,
+              platformCutAmount: 0,
+              vendorNetAmount: Number(body.quotedPrice),
               quotedCurrency: currency,
             }
       );

@@ -25,10 +25,17 @@ const SETTING_KEYS = {
 };
 
 /**
- * Private charter is priced per trip, not per seat, so it has its own dials:
- * one for rates an operator publishes, one for quotes they send by hand.
- * Either can be a percentage of the operator's figure or a flat amount, and a
- * flat amount is held per currency because MVR and USD never mix.
+ * Private charter is priced per trip, not per seat, and where Myboat's share
+ * comes from depends on how the price was reached.
+ *
+ * A published rate is priced in advance, so the markup goes on top and the
+ * operator still receives what they published — a percentage or a flat amount,
+ * the flat one held per currency because MVR and USD never mix.
+ *
+ * A quote is a figure the operator has usually already given the customer, so
+ * adding to it would change a price they were told. The commission comes out
+ * of it instead. A commission is a share of a figure, so there is nothing flat
+ * to configure.
  */
 const CHARTER_KEYS = {
   live: {
@@ -37,12 +44,7 @@ const CHARTER_KEYS = {
     flatMvr: 'CHARTER_LIVE_MARKUP_FLAT_MVR',
     flatUsd: 'CHARTER_LIVE_MARKUP_FLAT_USD',
   },
-  quote: {
-    mode: 'CHARTER_QUOTE_MARKUP_MODE',
-    percent: 'CHARTER_QUOTE_MARKUP_PERCENT',
-    flatMvr: 'CHARTER_QUOTE_MARKUP_FLAT_MVR',
-    flatUsd: 'CHARTER_QUOTE_MARKUP_FLAT_USD',
-  },
+  quote: { commissionPercent: 'CHARTER_QUOTE_COMMISSION_PERCENT' },
 };
 
 const ALL_CHARTER_KEYS = Object.values(CHARTER_KEYS).flatMap((g) => Object.values(g));
@@ -71,18 +73,16 @@ const globalSchema = z.object({
   agentMaxDiscountPercent: percentage.optional(),
 });
 
-const charterGroupSchema = z
-  .object({
-    mode: z.enum(['PERCENT', 'FLAT']).optional(),
-    percent: percentage.optional(),
-    flatMvr: money.optional(),
-    flatUsd: money.optional(),
-  })
-  .optional();
-
 const charterSchema = z.object({
-  live: charterGroupSchema,
-  quote: charterGroupSchema,
+  live: z
+    .object({
+      mode: z.enum(['PERCENT', 'FLAT']).optional(),
+      percent: percentage.optional(),
+      flatMvr: money.optional(),
+      flatUsd: money.optional(),
+    })
+    .optional(),
+  quote: z.object({ commissionPercent: percentage.optional() }).optional(),
 });
 
 const markupSchema = z.object({
@@ -125,13 +125,18 @@ const loadCharter = async () => {
     where: { keyName: { in: ALL_CHARTER_KEYS } },
     select: { keyName: true, value: true },
   });
-  const group = (g) => ({
-    mode: readText(rows, g.mode, 'PERCENT').toUpperCase() === 'FLAT' ? 'FLAT' : 'PERCENT',
-    percent: readNumber(rows, g.percent, 0),
-    flatMvr: readNumber(rows, g.flatMvr, 0),
-    flatUsd: readNumber(rows, g.flatUsd, 0),
-  });
-  return { live: group(CHARTER_KEYS.live), quote: group(CHARTER_KEYS.quote) };
+  const live = CHARTER_KEYS.live;
+  return {
+    live: {
+      mode: readText(rows, live.mode, 'PERCENT').toUpperCase() === 'FLAT' ? 'FLAT' : 'PERCENT',
+      percent: readNumber(rows, live.percent, 0),
+      flatMvr: readNumber(rows, live.flatMvr, 0),
+      flatUsd: readNumber(rows, live.flatUsd, 0),
+    },
+    quote: {
+      commissionPercent: readNumber(rows, CHARTER_KEYS.quote.commissionPercent, 0),
+    },
+  };
 };
 
 const writeSetting = (keyName, value, description) =>
@@ -281,32 +286,35 @@ const updateCharterCommission = async (req, res) => {
   try {
     const data = charterSchema.parse(req.body || {});
 
-    const LABEL = { live: 'published rates', quote: 'quotes' };
     const writes = [];
-    for (const dial of ['live', 'quote']) {
-      const group = data[dial];
-      if (!group) continue;
-      const keys = CHARTER_KEYS[dial];
-      const where = `Charter ${LABEL[dial]}`;
+    const live = data.live;
+    if (live) {
+      const k = CHARTER_KEYS.live;
+      const where = 'Charter published rates';
+      if (live.mode !== undefined) {
+        writes.push(writeSetting(k.mode, live.mode, `${where}: PERCENT or FLAT`));
+      }
+      if (live.percent !== undefined) {
+        writes.push(
+          writeSetting(k.percent, live.percent, `${where}: markup as a % of the operator price`)
+        );
+      }
+      if (live.flatMvr !== undefined) {
+        writes.push(writeSetting(k.flatMvr, live.flatMvr, `${where}: flat markup on MVR trips`));
+      }
+      if (live.flatUsd !== undefined) {
+        writes.push(writeSetting(k.flatUsd, live.flatUsd, `${where}: flat markup on USD trips`));
+      }
+    }
 
-      if (group.mode !== undefined) {
-        writes.push(writeSetting(keys.mode, group.mode, `${where}: PERCENT or FLAT`));
-      }
-      if (group.percent !== undefined) {
-        writes.push(
-          writeSetting(keys.percent, group.percent, `${where}: markup as a % of the operator price`)
-        );
-      }
-      if (group.flatMvr !== undefined) {
-        writes.push(
-          writeSetting(keys.flatMvr, group.flatMvr, `${where}: flat markup on MVR trips`)
-        );
-      }
-      if (group.flatUsd !== undefined) {
-        writes.push(
-          writeSetting(keys.flatUsd, group.flatUsd, `${where}: flat markup on USD trips`)
-        );
-      }
+    if (data.quote?.commissionPercent !== undefined) {
+      writes.push(
+        writeSetting(
+          CHARTER_KEYS.quote.commissionPercent,
+          data.quote.commissionPercent,
+          'Charter quotes: commission taken from the operator’s quoted amount, as a %'
+        )
+      );
     }
 
     if (writes.length === 0) {

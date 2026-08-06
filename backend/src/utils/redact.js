@@ -26,19 +26,19 @@ function redactRequestContact(request) {
 }
 
 /**
- * A charter quote carries two numbers — the operator's figure and the public
- * price with Myboat's markup on it — and `quotedPrice` holds the public one,
- * because that is what the customer is shown and what every payment screen
- * already reads.
+ * A charter carries three numbers: what the customer pays, what the operator
+ * asked for, and how the two shares divide. `quotedPrice` holds the customer's
+ * price, because that is what every payment screen already reads.
  *
  * An operator asked for their own figure, so that is what `quotedPrice` must
- * mean to them: prefilling their quote form with a marked-up number would have
- * them re-quote it and the markup would compound. They still see the public
- * price under its own name, so a customer quoting a different figure over the
- * phone does not read as a discrepancy.
+ * mean to them: prefilling their quote form with a marked-up published rate
+ * would have them re-quote it and the markup would compound. They also see
+ * what the customer pays and what they will actually receive, under names of
+ * their own — an operator settling with Myboat should not have to work out
+ * their own payout.
  *
- * A customer sees the public price and nothing else. What the operator settles
- * for is not theirs to know.
+ * A customer sees their price and nothing else. What the operator settles for
+ * is not theirs to know.
  */
 function priceForViewer(request, user) {
   if (!request || !('vendorQuotedPrice' in request)) return request;
@@ -48,13 +48,15 @@ function priceForViewer(request, user) {
   const out = { ...request };
   if (user?.role === 'VENDOR') {
     out.publicPrice = request.quotedPrice;
-    // Null when a quote predates the markup engine; the two were the same then.
+    // Null when a quote predates the engine; the two were the same then.
     out.quotedPrice = request.vendorQuotedPrice ?? request.quotedPrice;
+    out.vendorNetAmount = request.vendorNetAmount ?? request.quotedPrice;
     return out;
   }
 
   delete out.vendorQuotedPrice;
-  delete out.platformMarkupAmount;
+  delete out.platformCutAmount;
+  delete out.vendorNetAmount;
   return out;
 }
 

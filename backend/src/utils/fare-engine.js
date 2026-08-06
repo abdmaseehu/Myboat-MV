@@ -29,10 +29,10 @@
  * USD. Nothing is converted, and the flat fee is read per currency — one shared
  * number would have been a silent 1:1 conversion.
  *
- * Private charter works the same way but with its own dials, further down: a
- * whole boat for one trip has no seat tiers to price, and its markup may be a
- * percentage rather than a flat amount, because an operator's charter figure
- * varies by an order of magnitude between a short transfer and a day trip.
+ * Private charter has its own dials, further down: a whole boat for one trip
+ * has no seat tiers to price, and where Myboat's share comes from depends on
+ * whether the operator published the price in advance or named it for one
+ * customer.
  */
 
 const TIERS = {
@@ -52,10 +52,7 @@ const CHARTER_KEYS = [
   'CHARTER_LIVE_MARKUP_PERCENT',
   'CHARTER_LIVE_MARKUP_FLAT_MVR',
   'CHARTER_LIVE_MARKUP_FLAT_USD',
-  'CHARTER_QUOTE_MARKUP_MODE',
-  'CHARTER_QUOTE_MARKUP_PERCENT',
-  'CHARTER_QUOTE_MARKUP_FLAT_MVR',
-  'CHARTER_QUOTE_MARKUP_FLAT_USD',
+  'CHARTER_QUOTE_COMMISSION_PERCENT',
 ];
 
 const ZERO_MARKUP = { markupLocal: 0, markupExpat: 0, markupTourist: 0 };
@@ -166,48 +163,47 @@ function applyMarkupToSchedule(schedule, markup) {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Charter reaches a price in two ways, so it gets two dials.
+ * Charter reaches a price in two ways, and Myboat takes its share differently
+ * in each — because the two are not the same transaction.
  *
- *   live   a rate the operator published — markable up before anyone asks
- *   quote  a number the operator names per request — markable up only once
- *          it exists
+ *   live   a rate the operator published in advance. Nobody has been quoted
+ *          anything yet, so our cut is ADDED on top and the operator still
+ *          receives the figure they published. Percentage or flat amount.
  *
- * Each is either a percentage of the operator's figure or a flat amount, and a
- * flat amount is held per currency. A charter is one boat for one trip, so
- * there is no per-seat arithmetic here — the markup applies to the trip price.
+ *   quote  a number the operator names for one request, often after telling
+ *          the customer. Adding to it would change a price they were given, so
+ *          the cut is DEDUCTED: the customer pays the quote, the operator
+ *          receives the rest. A commission is a share of a figure, so it is a
+ *          percentage — there is no flat variant.
+ *
+ * Both settle to the same invariant:
+ *
+ *   quotedPrice = vendorNet + platformCut
  */
-async function loadCharterMarkup(prisma) {
+async function loadCharterConfig(prisma) {
   const rows = await prisma.setting.findMany({
     where: { keyName: { in: CHARTER_KEYS } },
     select: { keyName: true, value: true },
   });
   const get = (k) => rows.find((r) => r.keyName === k)?.value;
-  const mode = (v) => (String(v || '').toUpperCase() === 'FLAT' ? 'FLAT' : 'PERCENT');
 
   return {
     live: {
-      mode: mode(get('CHARTER_LIVE_MARKUP_MODE')),
+      mode: String(get('CHARTER_LIVE_MARKUP_MODE') || '').toUpperCase() === 'FLAT' ? 'FLAT' : 'PERCENT',
       percent: num(get('CHARTER_LIVE_MARKUP_PERCENT'), 0),
       flat: {
         MVR: num(get('CHARTER_LIVE_MARKUP_FLAT_MVR'), 0),
         USD: num(get('CHARTER_LIVE_MARKUP_FLAT_USD'), 0),
       },
     },
-    quote: {
-      mode: mode(get('CHARTER_QUOTE_MARKUP_MODE')),
-      percent: num(get('CHARTER_QUOTE_MARKUP_PERCENT'), 0),
-      flat: {
-        MVR: num(get('CHARTER_QUOTE_MARKUP_FLAT_MVR'), 0),
-        USD: num(get('CHARTER_QUOTE_MARKUP_FLAT_USD'), 0),
-      },
-    },
+    quote: { commissionPercent: num(get('CHARTER_QUOTE_COMMISSION_PERCENT'), 0) },
   };
 }
 
 /**
- * Apply one charter dial to an operator figure.
+ * Price a published charter rate: the markup goes on top.
  *
- * Returns null for a null base: an unpriced trip stays unpriced rather than
+ * Returns null for a null base — an unpriced trip stays unpriced rather than
  * becoming a fare made entirely of markup.
  */
 function applyCharterMarkup(basePrice, currency, rule) {
@@ -225,6 +221,32 @@ function applyCharterMarkup(basePrice, currency, rule) {
     operatorPrice: base,
     markup,
     publicPrice: money(base + markup),
+    // The operator keeps what they published; the markup was never theirs.
+    vendorNet: base,
+    platformCut: markup,
+  };
+}
+
+/**
+ * Price an operator's quote: the commission comes out of it.
+ *
+ * The customer pays exactly what the operator quoted, so a price already given
+ * over the phone stays true.
+ */
+function applyCharterCommission(quotedAmount, currency, rule) {
+  if (quotedAmount === null || quotedAmount === undefined || quotedAmount === '') return null;
+  const quoted = money(num(quotedAmount, 0));
+  const cur = currency === 'USD' ? 'USD' : 'MVR';
+
+  const platformCut = money((quoted * num(rule?.commissionPercent, 0)) / 100);
+
+  return {
+    currency: cur,
+    operatorPrice: quoted,
+    markup: 0,
+    publicPrice: quoted,
+    vendorNet: money(quoted - platformCut),
+    platformCut,
   };
 }
 
@@ -319,8 +341,9 @@ module.exports = {
   loadRouteMarkups,
   publicPriceForTier,
   applyMarkupToSchedule,
-  loadCharterMarkup,
+  loadCharterConfig,
   applyCharterMarkup,
+  applyCharterCommission,
   applyCharterRateMarkup,
   currencyForTier,
   computeFare,

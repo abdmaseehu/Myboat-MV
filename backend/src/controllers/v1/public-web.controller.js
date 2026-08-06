@@ -4,7 +4,7 @@ const { z } = require("zod");
 const {
   loadRouteMarkup,
   applyMarkupToSchedule,
-  loadCharterMarkup,
+  loadCharterConfig,
   applyCharterRateMarkup,
 } = require("../../utils/fare-engine");
 
@@ -328,7 +328,7 @@ const searchCharter = async (req, res) => {
 
     // Published charter rates are quoted at the public price, exactly as ferry
     // schedules are. The operator's own figure is kept alongside it.
-    const charterCfg = await loadCharterMarkup(prisma);
+    const charterCfg = await loadCharterConfig(prisma);
 
     const results = vessels.map(({ userId, charterRates, ...vessel }) => {
       const vendor = byUser.get(userId) || null;
