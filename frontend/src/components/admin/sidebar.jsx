@@ -42,6 +42,7 @@ import {
   Landmark,
   QrCode,
   FileText,
+  FileCode,
 } from "lucide-react";
 import { useSidebar } from "@/store/use-sidebar";
 import { useAuth } from "@/store/use-auth";
@@ -159,6 +160,12 @@ const adminRoutes = [
         label: "Myboat Invoices",
         icon: FileText,
         href: "/admin/platform-invoices",
+        color: "text-sky-500",
+      },
+      {
+        label: "Pages",
+        icon: FileCode,
+        href: "/admin/pages",
         color: "text-sky-500",
       },
       {

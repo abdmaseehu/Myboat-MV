@@ -345,3 +345,31 @@
 /* Safe area for mobile devices with notches */
 .safe-top { padding-top: env(safe-area-inset-top); }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+/**
+ * Custom pages (Admin → Pages).
+ *
+ * Tailwind's preflight strips heading sizes, list markers and link colour, so
+ * pasted HTML would otherwise arrive as a wall of identical text. These give
+ * plain markup sensible defaults while staying easy to override: everything is
+ * a single class deep, so a pasted layout with its own styles still wins.
+ */
+.cms-page h1 { @apply text-3xl md:text-4xl font-bold tracking-tight mt-8 mb-4 first:mt-0; }
+.cms-page h2 { @apply text-2xl md:text-3xl font-semibold tracking-tight mt-8 mb-3; }
+.cms-page h3 { @apply text-xl md:text-2xl font-semibold mt-6 mb-2; }
+.cms-page h4 { @apply text-lg font-semibold mt-5 mb-2; }
+.cms-page p  { @apply leading-relaxed mb-4; }
+.cms-page a  { @apply text-sky-600 underline underline-offset-2 hover:text-sky-700 dark:text-sky-400; }
+.cms-page ul { @apply list-disc pl-6 mb-4 space-y-1; }
+.cms-page ol { @apply list-decimal pl-6 mb-4 space-y-1; }
+.cms-page blockquote { @apply border-l-4 border-sky-500/40 pl-4 italic my-4 text-muted-foreground; }
+.cms-page img { @apply max-w-full h-auto rounded-xl my-4; }
+.cms-page hr { @apply my-8 border-border; }
+.cms-page code { @apply rounded bg-muted px-1.5 py-0.5 text-sm font-mono; }
+.cms-page pre { @apply rounded-xl bg-muted p-4 overflow-x-auto my-4 text-sm; }
+.cms-page pre code { @apply bg-transparent p-0; }
+.cms-page table { @apply w-full border-collapse my-4 text-sm; }
+.cms-page th, .cms-page td { @apply border border-border px-3 py-2 text-left; }
+.cms-page th { @apply bg-muted font-semibold; }
+/* A wide pasted table or embed scrolls itself rather than the whole page. */
+.cms-page iframe { @apply max-w-full my-4 rounded-xl; }

@@ -17,6 +17,7 @@ const driverRoutes = require('./driver.routes');
 const driverVehicleAssignedRoutes = require('./driver-vehicle-assigned.routes');
 const publicWebRoutes = require('./public-web.routes');
 const platformInvoiceRoutes = require('./platform-invoice.routes');
+const customPageRoutes = require('./custom-page.routes');
 const commissionRoutes = require('./commission.routes');
 const bookingRoutes = require('./booking.routes');
 const mobileAuthRoutes = require('./mobile-auth.routes');
@@ -36,6 +37,9 @@ const islandRoutes = require('./island.routes');
 router.use('/public', publicWebRoutes);
 router.use('/commissions', commissionRoutes);
 router.use('/platform-invoices', platformInvoiceRoutes);
+// Reading a published page is public; authoring one is administrators only.
+router.use('/pages', customPageRoutes.publicRouter);
+router.use('/admin/pages', customPageRoutes.adminRouter);
 
 // Protected routes (require authentication)
 router.use('/auth', userRoutes);

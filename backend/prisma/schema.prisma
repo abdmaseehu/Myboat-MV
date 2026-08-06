@@ -872,3 +872,30 @@ model PlatformInvoice {
     @@index([vendorId, status], map: "platform_invoices_vendor_idx")
     @@map("platform_invoices")
 }
+
+/// An editorial page an administrator writes from the dashboard.
+///
+/// `slug` holds a whole path, not one segment: 'maldives/kaafu-atoll/huraa-guide'
+/// is a single row. Nesting is therefore free — no parent pointers, no
+/// recursive query — and the catch-all route hands back exactly the string
+/// this column is indexed on.
+///
+/// `htmlContent` is raw HTML on purpose: the point of the module is to paste a
+/// layout with its own styles and embedded widgets. It is rendered unescaped,
+/// so authoring is restricted to administrators.
+model CustomPage {
+    id              String   @id @default(dbgenerated("gen_random_uuid()::text"))
+    title           String   @db.VarChar(255)
+    slug            String   @unique(map: "custom_pages_slug_key") @db.VarChar(255)
+    htmlContent     String?  @map("html_content")
+    metaTitle       String?  @map("meta_title") @db.VarChar(255)
+    metaDescription String?  @map("meta_description")
+    /// Raw JSON-LD, stored as written so an author can paste any valid schema.
+    schemaJson      String?  @map("schema_json")
+    isPublished     Boolean  @default(true) @map("is_published")
+    createdAt       DateTime @default(now()) @map("created_at")
+    updatedAt       DateTime @updatedAt @map("updated_at")
+
+    @@index([updatedAt(sort: Desc)], map: "custom_pages_updated_idx")
+    @@map("custom_pages")
+}
