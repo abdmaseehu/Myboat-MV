@@ -31,6 +31,9 @@ const registerSchema = z.object({
   }),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string(),
+  // Only self-service roles are offered. The API rejects anything else, so a
+  // tampered payload cannot escalate here.
+  role: z.enum(['USER', 'AGENT']).default('USER'),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -51,6 +54,7 @@ export default function RegisterPage() {
     confirmPassword: '',
     mobile: '',
     gender: '',
+    role: 'USER',
   });
   const [errors, setErrors] = useState({});
 
@@ -123,9 +127,17 @@ export default function RegisterPage() {
       const { confirmPassword, ...registrationData } = validatedData;
       
       // Attempt registration
-      await register(registrationData);
-      toast.success('Account created successfully!');
-      router.push('/admin/dashboard');
+      const role = await register(registrationData);
+      toast.success(
+        registrationData.role === 'AGENT'
+          ? 'Agent account created. Apply to the operators you work with.'
+          : 'Account created successfully!'
+      );
+      // Send people where their account actually lives — everyone was being
+      // pushed to the operator dashboard regardless of role.
+      if (role === 'ADMIN' || role === 'VENDOR') router.push('/admin/dashboard');
+      else if (role === 'AGENT') router.push('/agent/partners');
+      else router.push('/users');
     } catch (error) {
       if (error instanceof z.ZodError) {
         const newErrors = {};
@@ -179,6 +191,51 @@ export default function RegisterPage() {
 
         <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Account type — decides which workspace they land in */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-ocean-deep">
+                I am signing up as
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  {
+                    value: 'USER',
+                    title: 'Traveller',
+                    desc: 'Book ferry seats, charters and cargo',
+                  },
+                  {
+                    value: 'AGENT',
+                    title: 'Agent / Guesthouse',
+                    desc: 'Sell operator seats and earn commission',
+                  },
+                ].map((opt) => (
+                  <label
+                    key={opt.value}
+                    className={`cursor-pointer rounded-xl border p-3 transition-colors ${
+                      formData.role === opt.value
+                        ? 'border-sky-500 bg-sky-50/60'
+                        : 'border-border/60 hover:bg-muted/40'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="role"
+                      value={opt.value}
+                      checked={formData.role === opt.value}
+                      onChange={(e) =>
+                        setFormData((f) => ({ ...f, role: e.target.value }))
+                      }
+                      className="sr-only"
+                    />
+                    <span className="block text-sm font-medium">{opt.title}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {opt.desc}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="firstName" className="block text-sm font-medium text-gray-300">

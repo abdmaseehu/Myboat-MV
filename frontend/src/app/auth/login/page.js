@@ -122,6 +122,15 @@ export default function LoginPage() {
           ? pending
           : '/users';
       router.push(safe);
+    } else if (role === 'AGENT') {
+      // Agents resume a checkout too: they book on behalf of their guests.
+      const pending = localStorage.getItem('redirectAfterLogin');
+      localStorage.removeItem('redirectAfterLogin');
+      const safe =
+        pending && pending.startsWith('/') && !pending.startsWith('//')
+          ? pending
+          : '/agent/partners';
+      router.push(safe);
     } else if (role === 'ADMIN' || role === 'VENDOR') {
       // Staff never resume a customer checkout; drop any stale target.
       localStorage.removeItem('redirectAfterLogin');

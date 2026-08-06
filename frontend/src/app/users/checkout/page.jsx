@@ -35,6 +35,9 @@ export default function CheckoutPage() {
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [showPassengerErrors, setShowPassengerErrors] = useState(false);
+  // Net billing for agents. Read from the API rather than computed here, so
+  // the figure shown is the one the server will actually charge.
+  const [agentTerms, setAgentTerms] = useState(null);
   const { user } = useAuth();
   const {
     selectedVehicle,
@@ -119,6 +122,30 @@ export default function CheckoutPage() {
     setContactEmail((v) => v || user.email || "");
     setContactPhone((v) => v || user.mobile || "");
   }, [user]);
+
+  // An agent booking against this operator gets their partnership rate.
+  useEffect(() => {
+    const vendorId = selectedVehicle?.user?.vendor?.userId;
+    if (user?.role !== "AGENT" || !vendorId || !totalAmount) {
+      setAgentTerms(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get("/operator-agents/terms", {
+          params: { vendorId, amount: totalAmount },
+        });
+        if (!cancelled) setAgentTerms(res.data?.data || null);
+      } catch {
+        // Non-fatal: the server still applies the real terms at booking time.
+        if (!cancelled) setAgentTerms(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.role, selectedVehicle, totalAmount]);
 
   // Only judge the selection once the persisted store has been read back.
   // Running this against the empty initial state sent people home mid-booking.
@@ -488,13 +515,47 @@ export default function CheckoutPage() {
               </div>
             )}
 
+            {/* Agent net billing — shown only when a live partnership applies */}
+            {agentTerms?.hasPartnership && agentTerms.discountAmount > 0 && (
+              <>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span>{formatMoney(totalAmount)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">
+                    Agent rate ({agentTerms.discountPercent}% off)
+                  </span>
+                  <span className="text-emerald-600">
+                    −{formatMoney(agentTerms.discountAmount)}
+                  </span>
+                </div>
+                <Separator />
+              </>
+            )}
+
             {/* Total Amount */}
             <div className="flex justify-between items-center font-medium">
-              <span>Total Amount</span>
+              <span>
+                {agentTerms?.hasPartnership && agentTerms.discountAmount > 0
+                  ? "You pay"
+                  : "Total Amount"}
+              </span>
               <span className="text-xl text-sky-500">
-                {formatMoney(totalAmount)}
+                {formatMoney(
+                  agentTerms?.hasPartnership && agentTerms.finalAmount != null
+                    ? agentTerms.finalAmount
+                    : totalAmount
+                )}
               </span>
             </div>
+
+            {agentTerms?.hasPartnership && agentTerms.commissionAmount > 0 && (
+              <p className="text-xs text-muted-foreground">
+                You earn {formatMoney(agentTerms.commissionAmount)} commission on
+                this booking, settled directly with the operator.
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -21,7 +21,9 @@ export default function UserLayout({ children }) {
     setMounted(true);
     const validateAuth = async () => {
       const role = await checkAuth();
-      if (!role || role !== "USER") {
+      // Agents book for their guests through the same funnel, so they are
+      // allowed in here too.
+      if (!role || !["USER", "AGENT"].includes(role)) {
         router.push("/auth/login");
       }
     };

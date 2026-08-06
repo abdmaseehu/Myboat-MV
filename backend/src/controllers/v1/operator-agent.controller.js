@@ -1,6 +1,7 @@
 const { z } = require('zod');
 const prisma = require('../../lib/prisma');
 const { notify } = require('../../utils/notify');
+const { resolveAgentTerms, applyAgentTerms } = require('../../utils/agent-pricing');
 
 /**
  * Agent partnerships.
@@ -613,6 +614,38 @@ const reinstateAgentGlobally = async (req, res) => {
   }
 };
 
+// GET /operator-agents/terms?vendorId=<User.id>&amount=<gross>
+// What this agent's net price would be with this operator. Uses the same
+// resolver the booking endpoint uses, so the quoted figure and the charged
+// figure cannot drift apart.
+const getMyTermsForOperator = async (req, res) => {
+  try {
+    const { vendorId } = req.query;
+    if (!vendorId) {
+      return res.status(400).json({ success: false, message: 'vendorId is required' });
+    }
+    const terms = await resolveAgentTerms(prisma, { actor: req.user, vendorId });
+    const gross = Number(req.query.amount);
+    const money = Number.isFinite(gross) ? applyAgentTerms(gross, terms) : null;
+
+    return res.json({
+      success: true,
+      message: 'Agent terms retrieved',
+      data: {
+        hasPartnership: !!terms.agentId,
+        discountPercent: terms.discountPercent,
+        commissionPercent: terms.commissionPercent,
+        ...(money || {}),
+      },
+    });
+  } catch (error) {
+    console.error('getMyTermsForOperator error:', error);
+    return res
+      .status(500)
+      .json({ success: false, message: error.message || 'Error retrieving terms' });
+  }
+};
+
 module.exports = {
   getMyAgents,
   inviteAgent,
@@ -621,6 +654,7 @@ module.exports = {
   getAllAgents,
   applyToOperator,
   getMyPartnerships,
+  getMyTermsForOperator,
   getPendingRequests,
   approveAgent,
   rejectAgent,

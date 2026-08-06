@@ -10,6 +10,7 @@ const {
   getAllAgents,
   applyToOperator,
   getMyPartnerships,
+  getMyTermsForOperator,
   getPendingRequests,
   approveAgent,
   rejectAgent,
@@ -32,6 +33,7 @@ router.post('/admin/:userId/reinstate', isAdmin, reinstateAgentGlobally);
 // VENDOR is permitted here rather than AGENT alone.
 router.post('/apply', hasRole(['AGENT', 'VENDOR']), applyToOperator);
 router.get('/my-partnerships', hasRole(['AGENT', 'VENDOR']), getMyPartnerships);
+router.get('/terms', hasRole(['AGENT', 'VENDOR']), getMyTermsForOperator);
 
 // ------------------------------------------------------------- operator side
 router.use(isVendor);

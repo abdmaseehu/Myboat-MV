@@ -2,6 +2,7 @@ const getStripeInstance = require('../../config/stripe');
 const { z } = require('zod');
 const { PrismaClient } = require('@prisma/client');
 const { getCurrencyForCategory } = require('../../utils/currency');
+const { resolveAgentTerms, applyAgentTerms } = require('../../utils/agent-pricing');
 const prisma = new PrismaClient();
 
 // Validation schema for seat numbers
@@ -260,6 +261,16 @@ const createBooking = async (req, res) => {
         ? 'PENDING'
         : 'PROCESSING');
 
+    // Agent net billing is computed here, never taken from the request.
+    // A client could otherwise post agentDiscount: 99 and pay nothing, or claim
+    // a partnership that isn't theirs.
+    const agentTerms = await resolveAgentTerms(prisma, {
+      actor: req.user,
+      vendorId: validatedData.vendorId,
+      requestedAgentId: validatedData.agentId,
+    });
+    const agentMoney = applyAgentTerms(validatedData.totalAmount, agentTerms);
+
     // Create booking record
     const booking = await prisma.booking.create({
       data: {
@@ -272,8 +283,9 @@ const createBooking = async (req, res) => {
         droppingPointId: validatedData.droppingPointId || null,
         bookingDate: validatedData.bookingDate,
         totalAmount: validatedData.totalAmount,
-        discountAmount: validatedData.discountAmount || 0,
-        finalAmount: validatedData.finalAmount,
+        // Server-computed: the client's discountAmount/finalAmount are ignored.
+        discountAmount: agentMoney.discountAmount,
+        finalAmount: agentMoney.finalAmount,
         paymentMethod: validatedData.paymentMethod,
         seatNumbers: seatNumbersWithMeta,
         passengers: validatedData.passengers ?? undefined,
@@ -287,9 +299,11 @@ const createBooking = async (req, res) => {
             ? getCurrencyForCategory(validatedData.passengerCategory)
             : validatedData.passengerCategory === 'TOURIST' ? 'USD' : 'MVR'),
         isManual: validatedData.isManual || false,
-        agentId: validatedData.agentId || null,
-        agentDiscount: validatedData.agentDiscount || 0,
-        agentCommission: validatedData.agentCommission || 0,
+        agentId: agentTerms.agentId,
+        agentDiscount: agentMoney.discountAmount,
+        // Recorded for the operator to settle with the agent directly — the
+        // platform holds no payout ledger.
+        agentCommission: agentMoney.commissionAmount,
         status: initialStatus,
         paymentStatus: initialPaymentStatus,
         paymentIntentId: paymentIntent?.id,

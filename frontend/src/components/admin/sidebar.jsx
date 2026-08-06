@@ -31,6 +31,7 @@ import {
   Tags,
   Code2,
   Search,
+  Handshake,
   DollarSign,
   Database,
   Globe,
@@ -288,6 +289,12 @@ const vendorRoutes = [
         label: "Agents",
         icon: UserPlus,
         href: "/admin/agents",
+        color: "text-sky-500",
+      },
+      {
+        label: "Agent Requests",
+        icon: Handshake,
+        href: "/admin/agent-requests",
         color: "text-sky-500",
       },
       {
