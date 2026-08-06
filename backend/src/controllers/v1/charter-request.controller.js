@@ -2,7 +2,29 @@ const { PrismaClient } = require('@prisma/client');
 const { notify, getVendorUserId, notifyAdmins } = require('../../utils/notify');
 const { redactForViewer, redactListForViewer } = require('../../utils/redact');
 const { getPlatformPaymentDetails } = require('../../utils/platform-bank');
+const { loadCharterMarkup, applyCharterMarkup } = require('../../utils/fare-engine');
 const prisma = new PrismaClient();
+
+/**
+ * Price a charter the customer will see.
+ *
+ * The operator names their figure; Myboat's markup goes on top. `quotedPrice`
+ * is the public number, and the operator's own is kept beside it so a payout
+ * never has to be reverse-engineered from a percentage that has since changed.
+ *
+ * @param {'live'|'quote'} dial  published rate, or a per-request quote
+ */
+const priceCharter = async (operatorAmount, currency, dial) => {
+  const cfg = await loadCharterMarkup(prisma);
+  const priced = applyCharterMarkup(operatorAmount, currency, cfg[dial]);
+  if (!priced) return null;
+  return {
+    quotedPrice: priced.publicPrice,
+    vendorQuotedPrice: priced.operatorPrice,
+    platformMarkupAmount: priced.markup,
+    quotedCurrency: priced.currency,
+  };
+};
 
 // Helper: get vendor for the authenticated user (VENDOR role)
 const getVendorForUser = async (userId) => {
@@ -205,8 +227,12 @@ const createRequest = async (req, res) => {
     // otherwise be naming their own fare, and body.status let them mark it
     // ACCEPTED at the same time.
     if (isOperator && body.quotedPrice) {
-      data.quotedPrice = body.quotedPrice;
-      data.quotedCurrency = body.quotedCurrency || 'MVR';
+      const priced = await priceCharter(
+        body.quotedPrice,
+        body.quotedCurrency || 'MVR',
+        'quote'
+      );
+      Object.assign(data, priced);
       data.quotedAt = new Date();
     }
 
@@ -244,7 +270,7 @@ const createRequest = async (req, res) => {
     }
 
     // TODO: send confirmation email to guest + operator inbox and generate e-ticket
-    return res.status(201).json({ success: true, data: created });
+    return res.status(201).json({ success: true, data: redactForViewer(created, req.user) });
   } catch (error) {
     console.error('createRequest charter error', error);
     return res
@@ -296,9 +322,22 @@ const sendQuote = async (req, res) => {
       }
     }
 
+    // An operator's quote is their own figure and gets Myboat's markup on top.
+    // A quote Myboat sends itself — the admin-direct requests, where there is
+    // no operator to source from — is already the final price; marking up our
+    // own number would be charging ourselves.
+    const priced =
+      req.user.role === 'VENDOR'
+        ? await priceCharter(quotedPrice, quotedCurrency, 'quote')
+        : {
+            quotedPrice: Number(quotedPrice),
+            vendorQuotedPrice: Number(quotedPrice),
+            platformMarkupAmount: 0,
+            quotedCurrency,
+          };
+
     const data = {
-      quotedPrice,
-      quotedCurrency,
+      ...priced,
       quotedAt: new Date(),
       status: 'QUOTED',
       operatorNotes: operatorNotes || request.operatorNotes,
@@ -319,14 +358,15 @@ const sendQuote = async (req, res) => {
         userId: updated.userId,
         type: 'QUOTE_RECEIVED',
         title: `Quote received for ${routeLabel(updated)}`,
-        body: `${quotedCurrency} ${Number(quotedPrice).toLocaleString()} — review and accept in My Requests.`,
+        // The public price, matching what they will see and pay.
+        body: `${quotedCurrency} ${Number(priced.quotedPrice).toLocaleString()} — review and accept in My Requests.`,
         link: '/users/my-requests',
         entityType: 'CHARTER_REQUEST',
         entityId: updated.id,
       });
     }
 
-    return res.json({ success: true, data: updated });
+    return res.json({ success: true, data: redactForViewer(updated, req.user) });
   } catch (error) {
     console.error('sendQuote charter error', error);
     return res.status(400).json({ success: false, message: error.message });
@@ -366,6 +406,27 @@ const updateRequest = async (req, res) => {
 
     const body = req.body || {};
     const data = { ...body };
+
+    // The split between the operator's figure and Myboat's markup is the
+    // server's to make. Accepting either from the body would let a PATCH
+    // rewrite the markup to zero and keep the whole fare.
+    delete data.vendorQuotedPrice;
+    delete data.platformMarkupAmount;
+    if (body.quotedPrice !== undefined && body.quotedPrice !== null && body.quotedPrice !== '') {
+      const currency = body.quotedCurrency || request.quotedCurrency || 'MVR';
+      Object.assign(
+        data,
+        req.user.role === 'VENDOR'
+          ? await priceCharter(body.quotedPrice, currency, 'quote')
+          : {
+              quotedPrice: Number(body.quotedPrice),
+              vendorQuotedPrice: Number(body.quotedPrice),
+              platformMarkupAmount: 0,
+              quotedCurrency: currency,
+            }
+      );
+    }
+
     if (body.tripDate) data.tripDate = new Date(body.tripDate);
     if (body.returnDate) data.returnDate = new Date(body.returnDate);
     if (body.departureTime)
@@ -402,7 +463,7 @@ const updateRequest = async (req, res) => {
       }
     }
 
-    return res.json({ success: true, data: updated });
+    return res.json({ success: true, data: redactForViewer(updated, req.user) });
   } catch (error) {
     return res.status(400).json({ success: false, message: error.message });
   }
@@ -547,7 +608,7 @@ const markPaid = async (req, res) => {
       }
     }
 
-    return res.json({ success: true, data: updated });
+    return res.json({ success: true, data: redactForViewer(updated, req.user) });
   } catch (error) {
     console.error('markPaid charter error', error);
     return res.status(400).json({ success: false, message: error.message });
@@ -696,7 +757,13 @@ const createInstantBooking = async (req, res) => {
     else if (wanted === 'USD' && rate.priceUsd != null) currency = 'USD';
     else currency = rate.priceMvr != null ? 'MVR' : 'USD';
 
-    const price = currency === 'MVR' ? rate.priceMvr : rate.priceUsd;
+    // Recomputed here from the operator's published rate. The client posted a
+    // vessel and a currency, never a price.
+    const fare = await priceCharter(
+      currency === 'MVR' ? rate.priceMvr : rate.priceUsd,
+      currency,
+      'live'
+    );
 
     const vendor = vessel.userId
       ? await prisma.vendor.findUnique({
@@ -723,8 +790,7 @@ const createInstantBooking = async (req, res) => {
         specialRequirements: body.specialRequirements || null,
         // The customer accepted a published price, so this is agreed, not pending.
         status: 'ACCEPTED',
-        quotedPrice: price,
-        quotedCurrency: currency,
+        ...fare,
         quotedAt: new Date(),
         paymentMethod: body.paymentMethod === 'BANK_TRANSFER' ? 'BANK_TRANSFER' : 'CASH',
         paymentType: 'FULL',
@@ -749,7 +815,7 @@ const createInstantBooking = async (req, res) => {
       }
     }
 
-    return res.status(201).json({ success: true, data: created });
+    return res.status(201).json({ success: true, data: redactForViewer(created, req.user) });
   } catch (error) {
     console.error('createInstantBooking error:', error);
     return res.status(400).json({ success: false, message: error.message });

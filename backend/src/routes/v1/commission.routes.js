@@ -5,6 +5,7 @@ const { isAdmin } = require('../../middleware/role.middleware');
 const {
   getCommissionConfig,
   updateGlobalCommission,
+  updateCharterCommission,
   getRouteMarkupHandler,
   upsertRouteMarkup,
   deleteRouteMarkup,
@@ -16,6 +17,7 @@ router.use(isAuthenticated, isAdmin);
 
 router.get('/', getCommissionConfig);
 router.post('/global', updateGlobalCommission);
+router.post('/charter', updateCharterCommission);
 
 // Static segment first so "route" is never matched as a markup id.
 router.get('/route/:routeId', getRouteMarkupHandler);

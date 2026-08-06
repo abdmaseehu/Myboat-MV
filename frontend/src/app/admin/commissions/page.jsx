@@ -28,6 +28,7 @@ import {
   Percent,
   Route as RouteIcon,
   Save,
+  Ship,
   Trash2,
   Wallet,
 } from "lucide-react";
@@ -36,6 +37,108 @@ import { toast } from "sonner";
 import { useAuth } from "@/store/use-auth";
 
 const BLANK_MARKUP = { routeId: "", markupLocal: "", markupExpat: "", markupTourist: "" };
+
+const BLANK_CHARTER = {
+  live: { mode: "PERCENT", percent: "0", flatMvr: "0", flatUsd: "0" },
+  quote: { mode: "PERCENT", percent: "0", flatMvr: "0", flatUsd: "0" },
+};
+
+const asCharterGroup = (g) => ({
+  mode: g?.mode === "FLAT" ? "FLAT" : "PERCENT",
+  percent: String(g?.percent ?? 0),
+  flatMvr: String(g?.flatMvr ?? 0),
+  flatUsd: String(g?.flatUsd ?? 0),
+});
+
+/**
+ * One charter dial: a percentage of the operator's figure, or a flat amount.
+ *
+ * Only the fields the chosen mode actually uses are shown — leaving both on
+ * screen invites setting a percentage and a flat fee and expecting both.
+ */
+function CharterDial({ title, hint, group, onChange, sample }) {
+  const isFlat = group.mode === "FLAT";
+  const pct = Number(group.percent || 0);
+  const added = isFlat ? Number(group.flatMvr || 0) : (sample * pct) / 100;
+
+  return (
+    <div className="space-y-3 rounded-lg border p-4">
+      <div>
+        <Label className="text-sm font-semibold">{title}</Label>
+        <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Charge as</Label>
+          <Select value={group.mode} onValueChange={onChange("mode")}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="PERCENT">Percentage of operator price</SelectItem>
+              <SelectItem value="FLAT">Flat amount per trip</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {isFlat ? (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Flat (MVR)</Label>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={group.flatMvr}
+                onChange={(e) => onChange("flatMvr")(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Flat (USD)</Label>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={group.flatUsd}
+                onChange={(e) => onChange("flatUsd")(e.target.value)}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            <Label className="text-xs">Percentage</Label>
+            <div className="relative">
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                value={group.percent}
+                onChange={(e) => onChange("percent")(e.target.value)}
+              />
+              <Percent className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* A worked example beats a formula: the mistake this catches is setting
+          40 in a percentage field and meaning forty rufiyaa. */}
+      <p className="text-xs text-muted-foreground">
+        An operator price of <b>MVR {sample.toLocaleString()}</b> is sold at{" "}
+        <b className="text-emerald-600">
+          MVR {(sample + added).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+        </b>
+        {added > 0
+          ? ` — Myboat keeps ${added.toLocaleString(undefined, {
+              maximumFractionDigits: 2,
+            })}.`
+          : " — nothing added yet."}
+      </p>
+    </div>
+  );
+}
 
 /**
  * Platform economics: the global cut, the ceilings an operator may grant an
@@ -61,6 +164,8 @@ export default function CommissionsPage() {
     agentMaxCommissionPercent: "",
     agentMaxDiscountPercent: "",
   });
+  const [charter, setCharter] = useState(BLANK_CHARTER);
+  const [savingCharter, setSavingCharter] = useState(false);
   const [markups, setMarkups] = useState([]);
   const [routes, setRoutes] = useState([]);
   const [draft, setDraft] = useState(BLANK_MARKUP);
@@ -78,6 +183,10 @@ export default function CommissionsPage() {
         globalPlatformFlatFeeUsd: String(d?.global?.globalPlatformFlatFeeUsd ?? 0),
         agentMaxCommissionPercent: String(d?.global?.agentMaxCommissionPercent ?? 25),
         agentMaxDiscountPercent: String(d?.global?.agentMaxDiscountPercent ?? 25),
+      });
+      setCharter({
+        live: asCharterGroup(d?.charter?.live),
+        quote: asCharterGroup(d?.charter?.quote),
       });
       setMarkups(d?.markups || []);
     }
@@ -135,6 +244,28 @@ export default function CommissionsPage() {
     }
   };
 
+  const saveCharter = async () => {
+    const group = (g) => ({
+      mode: g.mode,
+      percent: Number(g.percent || 0),
+      flatMvr: Number(g.flatMvr || 0),
+      flatUsd: Number(g.flatUsd || 0),
+    });
+    try {
+      setSavingCharter(true);
+      await api.post("/commissions/charter", {
+        live: group(charter.live),
+        quote: group(charter.quote),
+      });
+      toast.success("Charter commission saved");
+      await load();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Could not save charter commission");
+    } finally {
+      setSavingCharter(false);
+    }
+  };
+
   const saveMarkup = async (row) => {
     if (!row.routeId) {
       toast.error("Choose a route first");
@@ -172,6 +303,8 @@ export default function CommissionsPage() {
   };
 
   const setG = (k) => (e) => setGlobals((g) => ({ ...g, [k]: e.target.value }));
+  const setC = (dial, k) => (v) =>
+    setCharter((c) => ({ ...c, [dial]: { ...c[dial], [k]: v } }));
   const setD = (k) => (e) => setDraft((d) => ({ ...d, [k]: e.target.value }));
 
   const routeLabel = (r) => `${r.sourceCity} → ${r.destinationCity}`;
@@ -412,6 +545,49 @@ export default function CommissionsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* --------------------------- private charter ---------------------- */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Ship className="h-4 w-4 text-sky-500" />
+            Private Charter
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            A charter is one boat for one trip, so it is priced whole rather
+            than per seat. These figures are added on top of the operator&apos;s
+            own price — the ferry cut above does not apply to charters.
+          </p>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <CharterDial
+              title="Published rates"
+              hint="Trips an operator has priced in advance, bookable instantly. Marked up in search, and again on the server when the booking is made."
+              group={charter.live}
+              onChange={(k) => setC("live", k)}
+              sample={5000}
+            />
+            <CharterDial
+              title="Quoted trips"
+              hint="Trips where the operator sends a price by hand. The customer sees their figure plus this markup; the operator still sees their own."
+              group={charter.quote}
+              onChange={(k) => setC("quote", k)}
+              sample={5000}
+            />
+          </div>
+
+          <Button onClick={saveCharter} disabled={savingCharter} className="gap-2">
+            {savingCharter ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            Save charter commission
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* --------------------------- existing rows ------------------------ */}
       <Card>

@@ -28,6 +28,11 @@
  * Currency isolation: LOCAL and EXPAT settle wholly in MVR, TOURIST wholly in
  * USD. Nothing is converted, and the flat fee is read per currency — one shared
  * number would have been a silent 1:1 conversion.
+ *
+ * Private charter works the same way but with its own dials, further down: a
+ * whole boat for one trip has no seat tiers to price, and its markup may be a
+ * percentage rather than a flat amount, because an operator's charter figure
+ * varies by an order of magnitude between a short transfer and a day trip.
  */
 
 const TIERS = {
@@ -40,6 +45,17 @@ const SETTING_KEYS = [
   'GLOBAL_PLATFORM_PERCENTAGE',
   'GLOBAL_PLATFORM_FLAT_FEE',
   'GLOBAL_PLATFORM_FLAT_FEE_USD',
+];
+
+const CHARTER_KEYS = [
+  'CHARTER_LIVE_MARKUP_MODE',
+  'CHARTER_LIVE_MARKUP_PERCENT',
+  'CHARTER_LIVE_MARKUP_FLAT_MVR',
+  'CHARTER_LIVE_MARKUP_FLAT_USD',
+  'CHARTER_QUOTE_MARKUP_MODE',
+  'CHARTER_QUOTE_MARKUP_PERCENT',
+  'CHARTER_QUOTE_MARKUP_FLAT_MVR',
+  'CHARTER_QUOTE_MARKUP_FLAT_USD',
 ];
 
 const ZERO_MARKUP = { markupLocal: 0, markupExpat: 0, markupTourist: 0 };
@@ -145,6 +161,91 @@ function applyMarkupToSchedule(schedule, markup) {
   return out;
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Private charter                                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Charter reaches a price in two ways, so it gets two dials.
+ *
+ *   live   a rate the operator published — markable up before anyone asks
+ *   quote  a number the operator names per request — markable up only once
+ *          it exists
+ *
+ * Each is either a percentage of the operator's figure or a flat amount, and a
+ * flat amount is held per currency. A charter is one boat for one trip, so
+ * there is no per-seat arithmetic here — the markup applies to the trip price.
+ */
+async function loadCharterMarkup(prisma) {
+  const rows = await prisma.setting.findMany({
+    where: { keyName: { in: CHARTER_KEYS } },
+    select: { keyName: true, value: true },
+  });
+  const get = (k) => rows.find((r) => r.keyName === k)?.value;
+  const mode = (v) => (String(v || '').toUpperCase() === 'FLAT' ? 'FLAT' : 'PERCENT');
+
+  return {
+    live: {
+      mode: mode(get('CHARTER_LIVE_MARKUP_MODE')),
+      percent: num(get('CHARTER_LIVE_MARKUP_PERCENT'), 0),
+      flat: {
+        MVR: num(get('CHARTER_LIVE_MARKUP_FLAT_MVR'), 0),
+        USD: num(get('CHARTER_LIVE_MARKUP_FLAT_USD'), 0),
+      },
+    },
+    quote: {
+      mode: mode(get('CHARTER_QUOTE_MARKUP_MODE')),
+      percent: num(get('CHARTER_QUOTE_MARKUP_PERCENT'), 0),
+      flat: {
+        MVR: num(get('CHARTER_QUOTE_MARKUP_FLAT_MVR'), 0),
+        USD: num(get('CHARTER_QUOTE_MARKUP_FLAT_USD'), 0),
+      },
+    },
+  };
+}
+
+/**
+ * Apply one charter dial to an operator figure.
+ *
+ * Returns null for a null base: an unpriced trip stays unpriced rather than
+ * becoming a fare made entirely of markup.
+ */
+function applyCharterMarkup(basePrice, currency, rule) {
+  if (basePrice === null || basePrice === undefined || basePrice === '') return null;
+  const base = money(num(basePrice, 0));
+  const cur = currency === 'USD' ? 'USD' : 'MVR';
+
+  const markup =
+    rule?.mode === 'FLAT'
+      ? money(num(rule?.flat?.[cur], 0))
+      : money((base * num(rule?.percent, 0)) / 100);
+
+  return {
+    currency: cur,
+    operatorPrice: base,
+    markup,
+    publicPrice: money(base + markup),
+  };
+}
+
+/**
+ * Public prices for a published charter rate, in whichever currencies the
+ * operator actually set. A currency they left blank stays blank.
+ */
+function applyCharterRateMarkup(rate, charterCfg) {
+  if (!rate) return rate;
+  const mvr = applyCharterMarkup(rate.priceMvr, 'MVR', charterCfg?.live);
+  const usd = applyCharterMarkup(rate.priceUsd, 'USD', charterCfg?.live);
+  return {
+    priceMvr: mvr ? mvr.publicPrice : null,
+    priceUsd: usd ? usd.publicPrice : null,
+    operatorPriceMvr: mvr ? mvr.operatorPrice : null,
+    operatorPriceUsd: usd ? usd.operatorPrice : null,
+    markupMvr: mvr ? mvr.markup : 0,
+    markupUsd: usd ? usd.markup : 0,
+  };
+}
+
 /** Currency a tier settles in. Never inferred from anything else. */
 const currencyForTier = (tier) => TIERS[tier]?.currency || 'MVR';
 
@@ -218,6 +319,9 @@ module.exports = {
   loadRouteMarkups,
   publicPriceForTier,
   applyMarkupToSchedule,
+  loadCharterMarkup,
+  applyCharterMarkup,
+  applyCharterRateMarkup,
   currencyForTier,
   computeFare,
   money,

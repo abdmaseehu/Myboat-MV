@@ -24,6 +24,29 @@ const SETTING_KEYS = {
   maxDiscount: 'AGENT_MAX_DISCOUNT_PERCENT',
 };
 
+/**
+ * Private charter is priced per trip, not per seat, so it has its own dials:
+ * one for rates an operator publishes, one for quotes they send by hand.
+ * Either can be a percentage of the operator's figure or a flat amount, and a
+ * flat amount is held per currency because MVR and USD never mix.
+ */
+const CHARTER_KEYS = {
+  live: {
+    mode: 'CHARTER_LIVE_MARKUP_MODE',
+    percent: 'CHARTER_LIVE_MARKUP_PERCENT',
+    flatMvr: 'CHARTER_LIVE_MARKUP_FLAT_MVR',
+    flatUsd: 'CHARTER_LIVE_MARKUP_FLAT_USD',
+  },
+  quote: {
+    mode: 'CHARTER_QUOTE_MARKUP_MODE',
+    percent: 'CHARTER_QUOTE_MARKUP_PERCENT',
+    flatMvr: 'CHARTER_QUOTE_MARKUP_FLAT_MVR',
+    flatUsd: 'CHARTER_QUOTE_MARKUP_FLAT_USD',
+  },
+};
+
+const ALL_CHARTER_KEYS = Object.values(CHARTER_KEYS).flatMap((g) => Object.values(g));
+
 const ZERO_MARKUP = {
   markupLocal: 0,
   markupExpat: 0,
@@ -46,6 +69,20 @@ const globalSchema = z.object({
   globalPlatformFlatFeeUsd: money.optional(),
   agentMaxCommissionPercent: percentage.optional(),
   agentMaxDiscountPercent: percentage.optional(),
+});
+
+const charterGroupSchema = z
+  .object({
+    mode: z.enum(['PERCENT', 'FLAT']).optional(),
+    percent: percentage.optional(),
+    flatMvr: money.optional(),
+    flatUsd: money.optional(),
+  })
+  .optional();
+
+const charterSchema = z.object({
+  live: charterGroupSchema,
+  quote: charterGroupSchema,
 });
 
 const markupSchema = z.object({
@@ -77,6 +114,26 @@ const loadGlobals = async () => {
   };
 };
 
+/** Read a text setting, falling back when missing or blank. */
+const readText = (rows, key, fallback) => {
+  const raw = rows.find((r) => r.keyName === key)?.value;
+  return raw === undefined || raw === null || String(raw).trim() === '' ? fallback : String(raw);
+};
+
+const loadCharter = async () => {
+  const rows = await prisma.setting.findMany({
+    where: { keyName: { in: ALL_CHARTER_KEYS } },
+    select: { keyName: true, value: true },
+  });
+  const group = (g) => ({
+    mode: readText(rows, g.mode, 'PERCENT').toUpperCase() === 'FLAT' ? 'FLAT' : 'PERCENT',
+    percent: readNumber(rows, g.percent, 0),
+    flatMvr: readNumber(rows, g.flatMvr, 0),
+    flatUsd: readNumber(rows, g.flatUsd, 0),
+  });
+  return { live: group(CHARTER_KEYS.live), quote: group(CHARTER_KEYS.quote) };
+};
+
 const writeSetting = (keyName, value, description) =>
   prisma.setting.upsert({
     where: { keyName },
@@ -105,8 +162,9 @@ const getRouteMarkup = async (routeId) => {
 // GET /commissions — global settings plus every configured markup
 const getCommissionConfig = async (req, res) => {
   try {
-    const [globals, markups] = await Promise.all([
+    const [globals, charter, markups] = await Promise.all([
       loadGlobals(),
+      loadCharter(),
       prisma.routeMarkup.findMany({
         include: {
           route: {
@@ -122,6 +180,7 @@ const getCommissionConfig = async (req, res) => {
       message: 'Commission configuration retrieved',
       data: {
         global: globals,
+        charter,
         markups: markups.map((m) => ({
           id: m.id,
           routeId: m.routeId,
@@ -217,6 +276,63 @@ const updateGlobalCommission = async (req, res) => {
   }
 };
 
+// POST /commissions/charter — the private-charter dials
+const updateCharterCommission = async (req, res) => {
+  try {
+    const data = charterSchema.parse(req.body || {});
+
+    const LABEL = { live: 'published rates', quote: 'quotes' };
+    const writes = [];
+    for (const dial of ['live', 'quote']) {
+      const group = data[dial];
+      if (!group) continue;
+      const keys = CHARTER_KEYS[dial];
+      const where = `Charter ${LABEL[dial]}`;
+
+      if (group.mode !== undefined) {
+        writes.push(writeSetting(keys.mode, group.mode, `${where}: PERCENT or FLAT`));
+      }
+      if (group.percent !== undefined) {
+        writes.push(
+          writeSetting(keys.percent, group.percent, `${where}: markup as a % of the operator price`)
+        );
+      }
+      if (group.flatMvr !== undefined) {
+        writes.push(
+          writeSetting(keys.flatMvr, group.flatMvr, `${where}: flat markup on MVR trips`)
+        );
+      }
+      if (group.flatUsd !== undefined) {
+        writes.push(
+          writeSetting(keys.flatUsd, group.flatUsd, `${where}: flat markup on USD trips`)
+        );
+      }
+    }
+
+    if (writes.length === 0) {
+      return res.status(400).json({ success: false, message: 'Nothing to update' });
+    }
+
+    await Promise.all(writes);
+    return res.json({
+      success: true,
+      message: 'Charter commission updated',
+      data: await loadCharter(),
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const detail = error.errors
+        .map((e) => `${e.path.join('.') || 'form'}: ${e.message}`)
+        .join('; ');
+      return res.status(400).json({ success: false, message: `Validation error — ${detail}` });
+    }
+    console.error('updateCharterCommission error:', error);
+    return res
+      .status(500)
+      .json({ success: false, message: error.message || 'Error updating charter commission' });
+  }
+};
+
 // GET /commissions/route/:routeId — always resolves, zeros when unset
 const getRouteMarkupHandler = async (req, res) => {
   try {
@@ -303,6 +419,7 @@ const deleteRouteMarkup = async (req, res) => {
 module.exports = {
   getCommissionConfig,
   updateGlobalCommission,
+  updateCharterCommission,
   getRouteMarkupHandler,
   upsertRouteMarkup,
   deleteRouteMarkup,

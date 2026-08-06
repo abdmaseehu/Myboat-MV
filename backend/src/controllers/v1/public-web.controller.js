@@ -1,7 +1,12 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { z } = require("zod");
-const { loadRouteMarkup, applyMarkupToSchedule } = require("../../utils/fare-engine");
+const {
+  loadRouteMarkup,
+  applyMarkupToSchedule,
+  loadCharterMarkup,
+  applyCharterRateMarkup,
+} = require("../../utils/fare-engine");
 
 // Get all unique source and destination cities
 const getCities = async (req, res) => {
@@ -321,6 +326,10 @@ const searchCharter = async (req, res) => {
     });
     const byUser = new Map(vendors.map((v) => [v.userId, v]));
 
+    // Published charter rates are quoted at the public price, exactly as ferry
+    // schedules are. The operator's own figure is kept alongside it.
+    const charterCfg = await loadCharterMarkup(prisma);
+
     const results = vessels.map(({ userId, charterRates, ...vessel }) => {
       const vendor = byUser.get(userId) || null;
 
@@ -337,14 +346,18 @@ const searchCharter = async (req, res) => {
         !rate.quoteOnly &&
         (rate.priceMvr != null || rate.priceUsd != null);
 
+      const priced = livePricing ? applyCharterRateMarkup(rate, charterCfg) : null;
+
       return {
         ...vessel,
         vendor: vendor ? { ...vendor, userId: undefined } : null,
-        pricing: livePricing
+        pricing: priced
           ? {
               mode: 'LIVE',
-              priceMvr: rate.priceMvr,
-              priceUsd: rate.priceUsd,
+              priceMvr: priced.priceMvr,
+              priceUsd: priced.priceUsd,
+              operatorPriceMvr: priced.operatorPriceMvr,
+              operatorPriceUsd: priced.operatorPriceUsd,
               instantBooking: !!vessel.charterInstantBooking,
             }
           : { mode: 'QUOTE' },
