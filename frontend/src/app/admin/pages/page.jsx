@@ -28,6 +28,7 @@ import {
 import {
   ExternalLink,
   FileCode,
+  ImageOff,
   Loader2,
   Pencil,
   Plus,
@@ -54,6 +55,7 @@ const BLANK = {
   htmlContent: "",
   metaTitle: "",
   metaDescription: "",
+  featuredImageUrl: "",
   schemaJson: "",
   isPublished: true,
 };
@@ -90,6 +92,7 @@ export default function CustomPagesPage() {
   const [saving, setSaving] = useState(false);
   const [loadingPage, setLoadingPage] = useState(false);
   const [deleting, setDeleting] = useState(null);
+  const [imageBroken, setImageBroken] = useState(false);
 
   const load = async () => {
     try {
@@ -130,6 +133,7 @@ export default function CustomPagesPage() {
           htmlContent: d.htmlContent || "",
           metaTitle: d.metaTitle || "",
           metaDescription: d.metaDescription || "",
+          featuredImageUrl: d.featuredImageUrl || "",
           schemaJson: d.schemaJson || "",
           isPublished: !!d.isPublished,
         });
@@ -164,6 +168,7 @@ export default function CustomPagesPage() {
       htmlContent: form.htmlContent,
       metaTitle: form.metaTitle,
       metaDescription: form.metaDescription,
+      featuredImageUrl: form.featuredImageUrl,
       schemaJson: form.schemaJson,
       isPublished: form.isPublished,
     };
@@ -206,8 +211,11 @@ export default function CustomPagesPage() {
     );
   }, [pages, search]);
 
-  const set = (k) => (e) =>
+  const set = (k) => (e) => {
+    // A new address deserves a fresh verdict on whether it loads.
+    if (k === "featuredImageUrl") setImageBroken(false);
     setForm((f) => ({ ...f, [k]: e?.target ? e.target.value : e }));
+  };
 
   const preview = normaliseSlug(form.slug);
 
@@ -418,6 +426,44 @@ export default function CustomPagesPage() {
                   placeholder={'<section class="hero">\n  <h1>Huraa</h1>\n</section>'}
                   className="font-mono text-xs leading-relaxed"
                 />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="featuredImage">Featured image</Label>
+                <Input
+                  id="featuredImage"
+                  value={form.featuredImageUrl}
+                  onChange={set("featuredImageUrl")}
+                  placeholder="https://…/huraa-beach.jpg  or  /uploads/huraa-beach.jpg"
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Shown as the banner above the page, and as the picture when
+                  the link is shared on WhatsApp, Viber or Facebook. Landscape,
+                  around 1200×630, works best for both.
+                </p>
+
+                {/* Loading it is the only honest check that the URL resolves —
+                    a valid-looking address can still 404. */}
+                {form.featuredImageUrl.trim() ? (
+                  imageBroken ? (
+                    <div className="flex items-center gap-2 rounded-lg border border-destructive/40 p-3 text-xs text-destructive">
+                      <ImageOff className="h-4 w-4 shrink-0" />
+                      That image did not load. Check the address is reachable.
+                    </div>
+                  ) : (
+                    <div className="overflow-hidden rounded-lg border">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={form.featuredImageUrl}
+                        alt="Featured image preview"
+                        className="max-h-56 w-full object-cover"
+                        onError={() => setImageBroken(true)}
+                        onLoad={() => setImageBroken(false)}
+                      />
+                    </div>
+                  )
+                ) : null}
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">

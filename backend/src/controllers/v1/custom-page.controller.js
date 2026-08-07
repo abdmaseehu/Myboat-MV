@@ -69,6 +69,25 @@ const schemaJsonField = z
 
 const optionalText = z.string().optional().nullable();
 
+/**
+ * A featured image is either somewhere else on the web or somewhere on this
+ * site. Anything else — a bare filename, a javascript: URL — is a mistake or
+ * an attack, and this value ends up in an og:image tag where neither belongs.
+ */
+const imageUrlField = z
+  .string()
+  .max(500, 'That image URL is too long')
+  .optional()
+  .nullable()
+  .refine(
+    (v) =>
+      v === undefined ||
+      v === null ||
+      String(v).trim() === '' ||
+      /^(https?:\/\/|\/)/i.test(String(v).trim()),
+    'Image must be a full https:// address or a path starting with /'
+  );
+
 // Absent means "leave it alone" on an update, so no field carries a default —
 // a default here would blank every field the form did not send.
 const pageSchema = z.object({
@@ -77,6 +96,7 @@ const pageSchema = z.object({
   htmlContent: optionalText,
   metaTitle: z.string().max(255, 'Meta title is too long').optional().nullable(),
   metaDescription: optionalText,
+  featuredImageUrl: imageUrlField,
   schemaJson: schemaJsonField,
   isPublished: z.boolean().optional(),
 });
@@ -88,7 +108,7 @@ const blankToNull = (v) => (v === undefined ? undefined : String(v ?? '').trim()
 /** What the write endpoints accept, with empty strings read as "not set". */
 const toRow = (data) => {
   const row = { ...data };
-  ['htmlContent', 'metaTitle', 'metaDescription', 'schemaJson'].forEach((k) => {
+  ['htmlContent', 'metaTitle', 'metaDescription', 'featuredImageUrl', 'schemaJson'].forEach((k) => {
     if (k in row) row[k] = blankToNull(row[k]);
   });
   return row;
@@ -172,6 +192,7 @@ const listPages = async (req, res) => {
         slug: true,
         metaTitle: true,
         metaDescription: true,
+        featuredImageUrl: true,
         isPublished: true,
         createdAt: true,
         updatedAt: true,

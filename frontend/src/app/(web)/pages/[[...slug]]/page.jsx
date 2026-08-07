@@ -18,6 +18,25 @@ const API = process.env.NEXT_PUBLIC_API_URL;
 const DEFAULT_DESCRIPTION =
   "Ferry seats, private charters and cargo across the Maldives — book with Myboat MV.";
 
+/** Shown when a page has no featured image of its own. */
+const DEFAULT_OG_IMAGE = "https://myboat.mv/default-og.jpg";
+
+/** Where a relative image path is resolved from, for absolute social URLs. */
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://myboat.mv";
+
+/**
+ * Social crawlers do not resolve relative URLs — WhatsApp and Facebook fetch
+ * og:image on their own servers, where "/uploads/huraa.jpg" means nothing. A
+ * path stored against this site is made absolute; a full address is left alone.
+ */
+const absoluteUrl = (url) => {
+  if (!url) return null;
+  const trimmed = String(url).trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `${SITE_URL.replace(/\/$/, "")}${trimmed.startsWith("/") ? "" : "/"}${trimmed}`;
+};
+
 /**
  * Fetch the page behind a path, or null.
  *
@@ -49,14 +68,21 @@ export async function generateMetadata({ params }) {
 
   const title = page.metaTitle || page.title;
   const description = page.metaDescription || DEFAULT_DESCRIPTION;
+  const image = absoluteUrl(page.featuredImageUrl) || DEFAULT_OG_IMAGE;
 
   return {
     title,
     description,
     // The page is its own canonical home, wherever it was linked from.
     alternates: { canonical: `/pages/${page.slug}` },
-    openGraph: { title, description, type: "article" },
-    twitter: { card: "summary_large_image", title, description },
+    openGraph: {
+      title,
+      description,
+      type: "article",
+      url: `${SITE_URL.replace(/\/$/, "")}/pages/${page.slug}`,
+      images: [image],
+    },
+    twitter: { card: "summary_large_image", title, description, images: [image] },
   };
 }
 
@@ -81,6 +107,28 @@ export default async function CustomPage({ params }) {
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: safeJsonLd(page.schemaJson) }}
         />
+      ) : null}
+
+      {/*
+        The banner, when there is one. Above the body rather than inside it, so
+        an author gets a hero without having to write the markup for one — and
+        so the same image serves the page and its share card.
+
+        A plain <img>: the URL can point anywhere, and next/image would need
+        every possible host declared in next.config before it would load one.
+        eager, because it is the first thing on the page and lazy-loading what
+        is already in view only delays it.
+      */}
+      {page.featuredImageUrl ? (
+        <div className="mx-auto w-full max-w-6xl px-4 pt-6 md:pt-10">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={page.featuredImageUrl}
+            alt={page.title}
+            loading="eager"
+            className="h-[220px] w-full rounded-2xl object-cover shadow-sm md:h-[380px]"
+          />
+        </div>
       ) : null}
 
       {/*

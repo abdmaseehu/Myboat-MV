@@ -890,6 +890,9 @@ model CustomPage {
     htmlContent     String?  @map("html_content")
     metaTitle       String?  @map("meta_title") @db.VarChar(255)
     metaDescription String?  @map("meta_description")
+    /// The hero banner above the body, and the picture shown when the page's
+    /// link is shared. One image, because in practice they are the same one.
+    featuredImageUrl String? @map("featured_image_url") @db.VarChar(500)
     /// Raw JSON-LD, stored as written so an author can paste any valid schema.
     schemaJson      String?  @map("schema_json")
     isPublished     Boolean  @default(true) @map("is_published")
