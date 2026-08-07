@@ -206,7 +206,7 @@ export function RequestBoatCard({ trip }) {
               asChild
               className="bg-lagoon hover:bg-lagoon/90 text-white rounded-full"
             >
-              <Link href={`/charter?${query.toString()}`}>
+              <Link href={`/charter/request?${query.toString()}`}>
                 Request a boat
                 <ArrowRight className="ml-1.5 h-4 w-4" />
               </Link>

@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Anchor, Loader2, Ship, Sparkles, Users } from "lucide-react";
+import { Anchor, Loader2, Ship, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import SearchForm from "@/components/web/bus-tickets/search-form";
+import { RequestBoatCard } from "@/components/web/charter/charter-result-card";
 import api from "@/lib/axios";
 
 /**
@@ -232,11 +233,6 @@ export default function CharterBrowser({ initialVessels = [] }) {
               Tell us where you are going and we will find a boat and come back
               with a price.
             </p>
-            <Button asChild className="mt-5 bg-coral text-white hover:bg-coral-soft">
-              <Link href="/charter/request">
-                <Sparkles className="mr-1.5 h-4 w-4" /> Request a charter
-              </Link>
-            </Button>
           </div>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -245,6 +241,16 @@ export default function CharterBrowser({ initialVessels = [] }) {
             ))}
           </div>
         )}
+
+        {/*
+          Below whatever the grid showed, empty or not. However many vessels
+          are listed, someone's trip will not fit one — an odd hour, an
+          overnight, an island nobody has priced — and an empty list is the
+          case where this matters most, because nothing else is on offer.
+        */}
+        <div className="mt-6">
+          <RequestBoatCard trip={{ from, to, date, passengers }} />
+        </div>
       </div>
     </>
   );

@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Boxes, Loader2, Package, Ship, Weight } from "lucide-react";
+import { Boxes, Loader2, Ship, Weight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import SearchForm from "@/components/web/bus-tickets/search-form";
+import { RequestCargoBoatCard } from "@/components/web/logistics/logistics-result-card";
 import api from "@/lib/axios";
 
 /**
@@ -258,11 +259,6 @@ export default function LogisticsBrowser({ initialVessels = [] }) {
               Tell us what needs moving and where, and we will find a boat and
               come back with a price. Most quotes land the same day.
             </p>
-            <Button asChild className="mt-5 bg-coral text-white hover:bg-coral-soft">
-              <Link href={`/logistics/request${tripQuery ? `?${tripQuery}` : ""}`}>
-                <Package className="mr-1.5 h-4 w-4" /> Request a cargo quote
-              </Link>
-            </Button>
           </div>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -271,6 +267,13 @@ export default function LogisticsBrowser({ initialVessels = [] }) {
             ))}
           </div>
         )}
+
+        {/* Below whatever the grid showed. With no cargo vessels listed at
+            all, this is the only route a visitor has — and it reaches Myboat
+            rather than broadcasting to operators who are not there. */}
+        <div className="mt-6">
+          <RequestCargoBoatCard trip={{ from, to, date, cargoType, tons }} />
+        </div>
       </div>
     </>
   );

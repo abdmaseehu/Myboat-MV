@@ -173,7 +173,7 @@ export default function LogisticsResultCard({ vessel, trip }) {
                   asChild
                   className="rounded-full bg-coral text-white hover:bg-coral-soft"
                 >
-                  <Link href={`/logistics?${query.toString()}`}>
+                  <Link href={`/logistics/request?${query.toString()}`}>
                     Book this boat
                     <ArrowRight className="ml-1.5 h-4 w-4" />
                   </Link>
@@ -185,7 +185,7 @@ export default function LogisticsResultCard({ vessel, trip }) {
                   Price on request
                 </p>
                 <Button asChild variant="outline" className="rounded-full">
-                  <Link href={`/logistics?${query.toString()}`}>
+                  <Link href={`/logistics/request?${query.toString()}`}>
                     <MessageSquareQuote className="mr-1.5 h-4 w-4" />
                     Request a quote
                   </Link>
@@ -232,7 +232,7 @@ export function RequestCargoBoatCard({ trip }) {
               className="rounded-full bg-lagoon text-white hover:bg-lagoon/90"
             >
               <Link
-                href={`/logistics?${tripQuery(trip, {
+                href={`/logistics/request?${tripQuery(trip, {
                   // Routes to Myboat staff rather than the operator broadcast.
                   adminDirect: "1",
                 }).toString()}`}
