@@ -9,7 +9,7 @@ import { notFound } from "next/navigation";
  *
  * A required catch-all, not an optional one: an optional catch-all also
  * matches "/", which the home page already owns, and two routes cannot claim
- * the same path. Every real route — /charter, /about, /admin — is more
+ * the same path. Every real route — /charter, /ferry, /admin — is more
  * specific than this, so Next matches those first and only unclaimed paths
  * arrive here.
  *

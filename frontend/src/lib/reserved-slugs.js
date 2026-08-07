@@ -23,7 +23,6 @@ export const ATTACHED_SLUGS = {
 
 /** Everything else at the top level, which would shadow a page silently. */
 export const TAKEN_SLUGS = [
-  "about",
   "admin",
   "agent",
   "api",

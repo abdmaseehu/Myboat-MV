@@ -19,7 +19,6 @@ const FALLBACK = [
   { id: "f-ferry", label: "Ferry", url: "/ferry", openInNewTab: false },
   { id: "f-charter", label: "Charter", url: "/charter", openInNewTab: false },
   { id: "f-logistics", label: "Logistics", url: "/logistics", openInNewTab: false },
-  { id: "f-about", label: "About", url: "/about", openInNewTab: false },
   { id: "f-contact", label: "Contact", url: "/contact", openInNewTab: false },
 ];
 

@@ -11,7 +11,6 @@ const explore = [
   { href: "/logistics", label: "Logistics" },
 ];
 const content = [
-  { href: "/about", label: "About Us" },
   { href: "/services", label: "Services" },
   { href: "/contact", label: "Contact" },
   { href: "/", label: "Blog" },

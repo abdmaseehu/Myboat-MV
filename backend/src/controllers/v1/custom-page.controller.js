@@ -112,7 +112,7 @@ const ATTACHED_SLUGS = {
 };
 
 const TAKEN_SLUGS = new Set([
-  'about', 'admin', 'agent', 'api', 'auth', 'contact', 'dashboard', 'embed',
+  'admin', 'agent', 'api', 'auth', 'contact', 'dashboard', 'embed',
   'favicon.ico', 'ferry', 'health', 'o', 'pages', 'robots.txt',
   'services', 'sitemap.xml', 'uploads', 'users', '_next',
 ]);
