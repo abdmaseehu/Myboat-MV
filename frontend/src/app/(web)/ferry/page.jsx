@@ -42,7 +42,8 @@ function FerryContent() {
           </div>
 
           <div className="glass-white shadow-premium mx-auto mt-8 max-w-5xl rounded-3xl p-5 md:mt-10 md:p-8">
-            <SearchForm />
+            {/* Ferry only: the other tabs led away from this page. */}
+            <SearchForm only={["ferry"]} />
           </div>
         </div>
       </div>
@@ -102,6 +103,7 @@ function FerryContent() {
       {showSearchForm && (
         <SearchForm
           isDialog={true}
+          only={["ferry"]}
           defaultValues={{ routeId, from, to, date: searchDate }}
           onClose={() => setShowSearchForm(false)}
         />

@@ -377,7 +377,7 @@ export default function TicketList({ routeId, date }) {
                 <h4 className="text-lg font-semibold mb-4 text-sky-500">
                   Try Another Search
                 </h4>
-                <SearchForm />
+                <SearchForm only={["ferry"]} />
               </div>
 
               <div className="flex items-center gap-4">

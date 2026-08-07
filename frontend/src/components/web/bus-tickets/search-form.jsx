@@ -53,9 +53,25 @@ export default function SearchForm({
   onClose,
   className,
   variant = "light", // "light" = for placement on hero (glass card); "solid" = for dialogs
+  /**
+   * Which services this instance offers, as tab ids.
+   *
+   * The home page offers all three, because that is where someone arrives not
+   * yet knowing what they want. A page about one service should not invite you
+   * to leave it: on the ferry page the other two tabs did nothing but navigate
+   * away from the results you had just asked for.
+   *
+   * One entry hides the tab strip entirely — a row of tabs with a single tab
+   * is a control that cannot do anything.
+   */
+  only,
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState("ferry");
+
+  const tabs = Array.isArray(only) && only.length
+    ? TABS.filter((t) => only.includes(t.id))
+    : TABS;
+  const [tab, setTab] = useState(tabs[0]?.id || "ferry");
   const [date, setDate] = useState(
     defaultValues.date ? new Date(defaultValues.date) : new Date()
   );
@@ -184,9 +200,14 @@ export default function SearchForm({
    */
   const formContent = (
     <div className={cn("w-full", className)}>
-      {/* Tabs */}
-      <div className="flex items-center gap-1 p-1 rounded-full bg-foam/80 border border-border/50 w-fit mx-auto md:mx-0 mb-6">
-        {TABS.map((t) => (
+      {/* Tabs — hidden when this instance offers only one service. */}
+      <div
+        className={cn(
+          "flex items-center gap-1 p-1 rounded-full bg-foam/80 border border-border/50 w-fit mx-auto md:mx-0 mb-6",
+          tabs.length < 2 && "hidden"
+        )}
+      >
+        {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
