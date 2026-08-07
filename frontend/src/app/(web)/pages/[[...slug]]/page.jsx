@@ -1,4 +1,5 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { routeForSlug } from "@/lib/reserved-slugs";
 
 /**
  * Custom pages, written in Admin → Pages and served from any depth of path.
@@ -94,6 +95,15 @@ export async function generateMetadata({ params }) {
 const safeJsonLd = (raw) => String(raw).replace(/</g, "\\u003c");
 
 export default async function CustomPage({ params }) {
+  // Some slugs supply the copy for a real route rather than standing alone.
+  // Serving both would put the same words at two addresses and split the
+  // ranking between them.
+  const segments = (params?.slug || []).filter(Boolean);
+  if (segments.length === 1) {
+    const owner = routeForSlug(segments[0]);
+    if (owner) redirect(owner);
+  }
+
   const page = await fetchPage(params?.slug);
 
   // Unpublished and non-existent are the same 404 here; the API already

@@ -65,6 +65,14 @@ export default function SearchForm({
    * is a control that cannot do anything.
    */
   only,
+  /**
+   * Handle the search here instead of navigating to a results page.
+   *
+   * A page that already lists the vessels should filter them in place rather
+   * than sending you somewhere else to see a subset — fewer page loads, and
+   * the browsing context survives the search.
+   */
+  onSearch,
 }) {
   const router = useRouter();
 
@@ -126,10 +134,22 @@ export default function SearchForm({
         toast.error("Please choose where you're sailing from, to, and when");
         return;
       }
+      const criteria = {
+        tab: "charter",
+        from: charterFrom,
+        to: charterTo,
+        date: format(date, "yyyy-MM-dd"),
+        passengers,
+      };
+      if (onSearch) {
+        onSearch(criteria);
+        if (onClose) onClose();
+        return;
+      }
       const url =
         `/charter/search?from=${encodeURIComponent(charterFrom)}` +
         `&to=${encodeURIComponent(charterTo)}` +
-        `&date=${format(date, "yyyy-MM-dd")}&passengers=${passengers}`;
+        `&date=${criteria.date}&passengers=${passengers}`;
       router.push(url);
       if (onClose) onClose();
       return;
@@ -137,6 +157,18 @@ export default function SearchForm({
     if (tab === "logistics") {
       if (!charterFrom || !charterTo || !date) {
         toast.error("Please choose pickup, delivery and date");
+        return;
+      }
+      if (onSearch) {
+        onSearch({
+          tab: "logistics",
+          from: charterFrom,
+          to: charterTo,
+          date: format(date, "yyyy-MM-dd"),
+          cargoType,
+          tons,
+        });
+        if (onClose) onClose();
         return;
       }
       const qs = new URLSearchParams({

@@ -15,6 +15,8 @@
 const API = process.env.NEXT_PUBLIC_API_URL;
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://myboat.mv').replace(/\/$/, '');
 
+import { RESERVED_SLUGS } from '@/lib/reserved-slugs';
+
 export const dynamic = 'force-dynamic';
 
 /**
@@ -55,7 +57,8 @@ export default async function sitemap() {
     priority: route.priority,
   }));
 
-  const pages = await fetchPages();
+  // A page whose slug belongs to a route is already listed as that route.
+  const pages = (await fetchPages()).filter((page) => !RESERVED_SLUGS[page.slug]);
   const pageEntries = pages.map((page) => ({
     url: `${SITE_URL}/pages/${page.slug}`,
     // When the page was last edited, which is what a crawler uses to decide
