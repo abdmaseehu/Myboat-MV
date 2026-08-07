@@ -28,9 +28,12 @@ import {
 import {
   ExternalLink,
   FileCode,
+  AlertTriangle,
+  Code2,
   History,
   ImageOff,
   ImagePlus,
+  Type,
   RotateCcw,
   Trash,
   Loader2,
@@ -44,6 +47,8 @@ import api from "@/lib/axios";
 import { toast } from "sonner";
 import { useAuth } from "@/store/use-auth";
 import { MediaPicker } from "@/components/admin/media/media-picker";
+import { RichTextEditor } from "@/components/admin/editor/rich-text-editor";
+import { inspectHtml, preferredMode } from "@/components/admin/editor/html-complexity";
 
 /**
  * Custom pages: island guides, landing pages, policy text.
@@ -117,6 +122,12 @@ export default function CustomPagesPage() {
   const [showDeleted, setShowDeleted] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
 
+  // 'visual' is TipTap; 'html' is the raw textarea. Which one a page opens in
+  // depends on whether the visual editor could hold its content without
+  // destroying it.
+  const [editorMode, setEditorMode] = useState("visual");
+  const [switchWarning, setSwitchWarning] = useState(null);
+
   const load = async () => {
     try {
       const [list, gone] = await Promise.allSettled([
@@ -168,6 +179,7 @@ export default function CustomPagesPage() {
 
   const openNew = () => {
     setForm(BLANK);
+    setEditorMode("visual");
     setEditorOpen(true);
   };
 
@@ -181,6 +193,9 @@ export default function CustomPagesPage() {
       const res = await api.get(`/admin/pages/${row.id}`);
       const d = res?.data?.data;
       if (d) {
+        // Complex markup opens in HTML, because that is the only mode that
+        // can hold it. Everything else opens visually.
+        setEditorMode(preferredMode(d.htmlContent || ""));
         setForm({
           id: d.id,
           title: d.title || "",
@@ -265,6 +280,26 @@ export default function CustomPagesPage() {
       [p.title, p.slug].filter(Boolean).some((v) => v.toLowerCase().includes(q))
     );
   }, [pages, search]);
+
+  /**
+   * Switch editors, asking first when the switch would destroy something.
+   *
+   * Going to the visual editor means handing the markup to TipTap's schema,
+   * which drops whatever it does not recognise — silently, and with no undo
+   * inside the form. Anything that looks like a pasted layout gets a warning
+   * naming what is at risk.
+   */
+  const requestMode = (mode) => {
+    if (mode === editorMode) return;
+    if (mode === "visual") {
+      const { complex, reasons } = inspectHtml(form.htmlContent);
+      if (complex) {
+        setSwitchWarning(reasons);
+        return;
+      }
+    }
+    setEditorMode(mode);
+  };
 
   const set = (k) => (e) => {
     // A new address deserves a fresh verdict on whether it loads.
@@ -539,16 +574,53 @@ export default function CustomPagesPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="html">HTML body</Label>
-                <Textarea
-                  id="html"
-                  value={form.htmlContent}
-                  onChange={set("htmlContent")}
-                  rows={14}
-                  spellCheck={false}
-                  placeholder={'<section class="hero">\n  <h1>Huraa</h1>\n</section>'}
-                  className="font-mono text-xs leading-relaxed"
-                />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label>Page body</Label>
+                  <div className="flex items-center rounded-lg border p-0.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={editorMode === "visual" ? "secondary" : "ghost"}
+                      className="h-7 gap-1.5 px-2.5 text-xs"
+                      onClick={() => requestMode("visual")}
+                    >
+                      <Type className="h-3.5 w-3.5" /> Visual
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={editorMode === "html" ? "secondary" : "ghost"}
+                      className="h-7 gap-1.5 px-2.5 text-xs"
+                      onClick={() => requestMode("html")}
+                    >
+                      <Code2 className="h-3.5 w-3.5" /> HTML
+                    </Button>
+                  </div>
+                </div>
+
+                {editorMode === "visual" ? (
+                  <RichTextEditor
+                    value={form.htmlContent}
+                    onChange={(html) => setForm((f) => ({ ...f, htmlContent: html }))}
+                    placeholder="Write the page — headings, lists, images, tables…"
+                  />
+                ) : (
+                  <>
+                    <Textarea
+                      id="html"
+                      value={form.htmlContent}
+                      onChange={set("htmlContent")}
+                      rows={16}
+                      spellCheck={false}
+                      placeholder={'<section class="hero">\n  <h1>Huraa</h1>\n</section>'}
+                      className="font-mono text-xs leading-relaxed"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Paste a full layout here. Scripts and event handlers are
+                      removed on save; styles, classes and embeds are kept.
+                    </p>
+                  </>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -675,6 +747,41 @@ export default function CustomPagesPage() {
                 <Save className="h-4 w-4" />
               )}
               {form.id ? "Save changes" : "Create page"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!switchWarning} onOpenChange={(o) => !o && setSwitchWarning(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              The visual editor cannot hold this
+            </DialogTitle>
+            <DialogDescription>
+              This page contains{" "}
+              <b>{(switchWarning || []).join(", ")}</b>. The visual editor only
+              understands ordinary text formatting, so switching would strip
+              the rest out and there is no undo inside this form.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg border border-amber-300/60 bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-900/10 dark:text-amber-200">
+            If you switch and save, the previous version is still recoverable
+            from <b>History</b> — but staying in HTML is simpler.
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSwitchWarning(null)}>
+              Stay in HTML
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setEditorMode("visual");
+                setSwitchWarning(null);
+              }}
+            >
+              Switch anyway
             </Button>
           </DialogFooter>
         </DialogContent>
