@@ -459,7 +459,7 @@ export default function CustomPagesPage() {
                     </TableCell>
                     <TableCell>
                       <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                        /pages/{p.slug}
+                        /{p.slug}
                       </code>
                     </TableCell>
                     <TableCell>
@@ -481,7 +481,7 @@ export default function CustomPagesPage() {
                         {p.isPublished && (
                           <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
                             <a
-                              href={`/pages/${p.slug}`}
+                              href={`/${p.slug}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               aria-label="View page"
@@ -566,7 +566,7 @@ export default function CustomPagesPage() {
                   <p className="text-xs text-muted-foreground">
                     Lives at{" "}
                     <code className="rounded bg-muted px-1 py-0.5">
-                      /pages/{preview || "…"}
+                      /{preview || "…"}
                     </code>
                     . Slashes nest it; spaces and capitals are tidied for you.
                   </p>
@@ -873,7 +873,7 @@ export default function CustomPagesPage() {
             <DialogDescription>
               <b>{deleting?.title}</b> at{" "}
               <code className="rounded bg-muted px-1 py-0.5">
-                /pages/{deleting?.slug}
+                /{deleting?.slug}
               </code>{" "}
               will be removed and the URL will start returning 404. It is kept
               under <b>Deleted</b> and can be restored at any time.

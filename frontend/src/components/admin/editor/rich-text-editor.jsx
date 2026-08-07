@@ -342,7 +342,7 @@ export function RichTextEditor({ value, onChange, placeholder }) {
               id="href"
               value={linkHref}
               onChange={(e) => setLinkHref(e.target.value)}
-              placeholder="/pages/maldives/huraa-guide  or  https://…"
+              placeholder="/maldives/huraa-guide  or  https://…"
               onKeyDown={(e) => e.key === "Enter" && applyLink()}
             />
             <p className="text-xs text-muted-foreground">

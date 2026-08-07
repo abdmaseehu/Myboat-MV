@@ -94,6 +94,39 @@ const imageUrlField = z
     'Image must be a full https:// address or a path starting with /'
   );
 
+/**
+ * Slugs a real route already answers.
+ *
+ * Pages are served from the site root, so a page whose slug matches a route is
+ * never reached — the more specific route always wins. Without this check the
+ * page would sit in the dashboard looking published while being invisible to
+ * everyone, which is a worse outcome than being told no.
+ *
+ * `charter` is the exception: that route reads its page and renders the copy,
+ * so creating one is the intended way to edit it. As other routes are wired to
+ * the CMS they move from the blocked list into this one.
+ */
+const ATTACHED_SLUGS = {
+  charter: '/charter',
+};
+
+const TAKEN_SLUGS = new Set([
+  'about', 'admin', 'agent', 'api', 'auth', 'contact', 'dashboard', 'embed',
+  'favicon.ico', 'ferry', 'health', 'logistics', 'o', 'pages', 'robots.txt',
+  'services', 'sitemap.xml', 'uploads', 'users', '_next',
+]);
+
+/** The reason a slug cannot be used, or null when it is free. */
+const slugConflict = (slug) => {
+  const first = String(slug || '').split('/')[0].toLowerCase();
+  if (!first) return null;
+  if (ATTACHED_SLUGS[first]) return null;
+  if (TAKEN_SLUGS.has(first)) {
+    return `"${first}" is already a page on the site, so nothing saved here would be reachable. Pick a different path.`;
+  }
+  return null;
+};
+
 // Absent means "leave it alone" on an update, so no field carries a default —
 // a default here would blank every field the form did not send.
 const pageSchema = z.object({
@@ -253,6 +286,12 @@ const getPageById = async (req, res) => {
 const createPage = async (req, res) => {
   try {
     const { row, stripped } = toRow(pageSchema.parse(req.body || {}));
+
+    const conflict = slugConflict(row.slug);
+    if (conflict) {
+      return res.status(409).json({ success: false, message: conflict });
+    }
+
     const page = await prisma.customPage.create({ data: row });
     return res.status(201).json({
       success: true,
@@ -281,6 +320,13 @@ const updatePage = async (req, res) => {
     const { row, stripped } = toRow(updateSchema.parse(req.body || {}));
     if (Object.keys(row).length === 0) {
       return res.status(400).json({ success: false, message: 'Nothing to update' });
+    }
+
+    if (row.slug !== undefined) {
+      const conflict = slugConflict(row.slug);
+      if (conflict) {
+        return res.status(409).json({ success: false, message: conflict });
+      }
     }
 
     // The version being replaced, kept before it is replaced. Read from the

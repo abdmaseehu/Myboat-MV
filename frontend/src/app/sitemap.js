@@ -60,7 +60,7 @@ export default async function sitemap() {
   // A page whose slug belongs to a route is already listed as that route.
   const pages = (await fetchPages()).filter((page) => !RESERVED_SLUGS[page.slug]);
   const pageEntries = pages.map((page) => ({
-    url: `${SITE_URL}/pages/${page.slug}`,
+    url: `${SITE_URL}/${page.slug}`,
     // When the page was last edited, which is what a crawler uses to decide
     // whether re-reading it is worth the request.
     lastModified: page.updatedAt ? new Date(page.updatedAt) : now,

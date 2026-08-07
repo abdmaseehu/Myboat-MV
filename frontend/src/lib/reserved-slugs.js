@@ -1,18 +1,51 @@
 /**
- * CMS slugs that belong to a real route.
+ * Slugs that a real route already answers.
  *
- * A page written at one of these paths supplies the copy for the route named
- * here — /charter reads the page whose slug is "charter". Both URLs would
- * otherwise serve the same words, which splits the ranking between them and
- * leaves a crawler to guess which is canonical.
+ * Custom pages live at the site root, so a page whose slug matches a route is
+ * simply never reached — Next matches the more specific route first. The page
+ * would sit in the dashboard looking published and be invisible to everyone.
  *
- * So the catch-all redirects these to their route, and the sitemap lists the
- * route rather than the page. One address, one copy of the content.
+ * Two kinds:
+ *
+ *   ATTACHED  the route reads this page and renders its copy. Creating one is
+ *             the intended way to edit that page's words.
+ *
+ *   TAKEN     the route ignores the CMS entirely. A page here is unreachable,
+ *             so the API refuses the slug rather than letting someone write a
+ *             guide nobody can open.
  */
-export const RESERVED_SLUGS = {
+
+/** Routes that render CMS copy, keyed by the slug that feeds them. */
+export const ATTACHED_SLUGS = {
   charter: "/charter",
-  logistics: "/logistics",
-  ferry: "/ferry",
 };
 
-export const routeForSlug = (slug) => RESERVED_SLUGS[String(slug || "").toLowerCase()] || null;
+/** Everything else at the top level, which would shadow a page silently. */
+export const TAKEN_SLUGS = [
+  "about",
+  "admin",
+  "agent",
+  "api",
+  "auth",
+  "contact",
+  "dashboard",
+  "embed",
+  "favicon.ico",
+  "ferry",
+  "health",
+  "logistics",
+  "o",
+  "pages",
+  "robots.txt",
+  "services",
+  "sitemap.xml",
+  "uploads",
+  "users",
+  "_next",
+];
+
+export const routeForSlug = (slug) =>
+  ATTACHED_SLUGS[String(slug || "").toLowerCase()] || null;
+
+/** Kept for the sitemap: a page feeding a route is listed as that route. */
+export const RESERVED_SLUGS = ATTACHED_SLUGS;

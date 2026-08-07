@@ -355,7 +355,7 @@ export default function MenusPage() {
                 id="url"
                 value={form.url}
                 onChange={set("url")}
-                placeholder="/pages/maldives/huraa-guide"
+                placeholder="/maldives/huraa-guide"
                 className="font-mono text-sm"
               />
               {pages.length > 0 && (
@@ -367,7 +367,7 @@ export default function MenusPage() {
                     onValueChange={(slug) =>
                       setForm((f) => ({
                         ...f,
-                        url: `/pages/${slug}`,
+                        url: `/${slug}`,
                         label:
                           f.label ||
                           pages.find((p) => p.slug === slug)?.title ||
