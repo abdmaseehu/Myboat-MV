@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, forwardRef } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -60,6 +60,9 @@ export default function CharterPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [operators, setOperators] = useState([]);
+  // Set when the customer arrived from a specific vessel's card, so the form
+  // can say which boat and which operator rather than asking again.
+  const [vessel, setVessel] = useState(null);
   // "" = broadcast to every operator (the recommended default)
   const [vendorId, setVendorId] = useState("");
   // "Request Boat MV": goes to Myboat staff, not the operator broadcast.
@@ -116,6 +119,51 @@ export default function CharterPage() {
     if (pax > 0) setValue("passengers", pax);
   }, [setValue]);
 
+  /**
+   * Carry across everything the customer already told us.
+   *
+   * They picked islands, a date and a party size to get here, and clicked one
+   * vessel's card. Opening a blank form asks all of it again, and the operator
+   * dropdown implies the choice is still open when it is not.
+   */
+  useEffect(() => {
+    const qs = new URLSearchParams(window.location.search);
+    const setIf = (param, field, transform) => {
+      const v = qs.get(param);
+      if (v) setValue(field, transform ? transform(v) : v);
+    };
+    setIf("from", "origin");
+    setIf("to", "destination");
+    setIf("date", "tripDate");
+    setIf("passengers", "passengers", (v) => Number(v) || 2);
+  }, [setValue]);
+
+  /**
+   * The vessel behind ?vessel=<id>, resolved rather than trusted.
+   *
+   * Its operator is read from the record, not from the URL, so a tampered or
+   * stale link cannot address a request to the wrong company.
+   */
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("vessel");
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get("/public/charter-search");
+        const match = (res?.data?.data?.vessels || []).find((v) => v.id === id);
+        if (cancelled || !match) return;
+        setVessel(match);
+        if (match.vendor?.id) setVendorId(match.vendor.id);
+      } catch {
+        // Falls back to a broadcast request, which still works.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Load approved operators + honour ?operator=<publicSlug> deep links
   // (e.g. the "Request a Charter" button on an operator profile page).
   useEffect(() => {
@@ -168,6 +216,9 @@ export default function CharterPage() {
         specialRequirements: values.specialRequirements || null,
         // "" -> null = broadcast to all operators
         vendorId: adminDirect ? null : vendorId || null,
+        // Which boat was asked for, when one was. The operator otherwise has
+        // to guess which of their vessels the customer meant.
+        vesselId: adminDirect ? null : vessel?.id || null,
         adminDirect,
       };
       await api.post("/charter-requests", payload);
@@ -369,6 +420,38 @@ export default function CharterPage() {
                     </FormSection>
                   ) : (
                   <FormSection title="Preferred Operator" icon={Ship}>
+                    {vessel ? (
+                      /*
+                        Chosen already. A dropdown here would invite a decision
+                        that was made on the previous page, and an unselected
+                        one reads as though nothing was chosen at all.
+                      */
+                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-lagoon/30 bg-lagoon/5 p-4">
+                        <div className="min-w-0">
+                          <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                            Requesting from
+                          </div>
+                          <div className="font-semibold text-ocean-deep">
+                            {vessel.vendor?.businessName || "This operator"}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {vessel.vehicleName}
+                            {vessel.totalSeats ? ` · up to ${vessel.totalSeats} passengers` : ""}
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setVessel(null);
+                            setVendorId("");
+                          }}
+                        >
+                          Ask every operator instead
+                        </Button>
+                      </div>
+                    ) : (
                     <Field
                       label="Send this request to"
                       hint="Broadcasting to every operator usually gets you more quotes to compare."
@@ -390,6 +473,7 @@ export default function CharterPage() {
                         </SelectContent>
                       </Select>
                     </Field>
+                    )}
                   </FormSection>
                   )}
 
@@ -435,14 +519,24 @@ export default function CharterPage() {
   );
 }
 
-function StyledInput(props) {
+/**
+ * Forwards its ref, which react-hook-form depends on.
+ *
+ * This was a plain function component. React does not pass `ref` through props
+ * to those, so spreading register() dropped it silently: the field still
+ * tracked typing through onChange, but nothing set programmatically ever
+ * reached the DOM. setValue updated the store while the box stayed empty —
+ * which is why the logged-in name and email prefill above never appeared.
+ */
+const StyledInput = forwardRef(function StyledInput(props, ref) {
   return (
     <Input
+      ref={ref}
       {...props}
       className="h-12 rounded-2xl border-border/60 bg-white text-ocean-deep placeholder:text-muted-foreground focus-visible:ring-lagoon"
     />
   );
-}
+});
 
 function FormSection({ title, icon: Icon, children }) {
   return (

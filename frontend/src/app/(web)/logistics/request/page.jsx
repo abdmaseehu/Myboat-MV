@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, forwardRef } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -439,14 +439,20 @@ export default function LogisticsPage() {
   );
 }
 
-function StyledInput(props) {
+/**
+ * Forwards its ref, which react-hook-form depends on. Without it React drops
+ * the ref that register() supplies, and anything set programmatically updates
+ * the form store while the visible box stays empty.
+ */
+const StyledInput = forwardRef(function StyledInput(props, ref) {
   return (
     <Input
+      ref={ref}
       {...props}
       className="h-12 rounded-2xl border-border/60 bg-white text-ocean-deep placeholder:text-muted-foreground focus-visible:ring-lagoon"
     />
   );
-}
+});
 
 function FormSection({ title, icon: Icon, children }) {
   return (

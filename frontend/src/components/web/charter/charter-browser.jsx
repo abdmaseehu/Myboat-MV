@@ -107,11 +107,15 @@ function VesselCard({ vessel, searched, trip }) {
           >
             {/* Carry the searched trip through, so the booking page opens
                 with the route and date already answered. */}
+            {/* The vessel goes with the trip either way. Without it the quote
+                form opens asking which operator to send to, having just been
+                told — and the customer answers a question they already
+                answered by clicking this card. */}
             <Link
               href={
                 live
                   ? `/charter/book?vessel=${vessel.id}${trip ? `&${trip}` : ""}`
-                  : `/charter/request${trip ? `?${trip}` : ""}`
+                  : `/charter/request?vessel=${vessel.id}${trip ? `&${trip}` : ""}`
               }
             >
               {live ? "Book" : "Request a quote"}
