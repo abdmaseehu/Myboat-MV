@@ -30,6 +30,7 @@ import {
   FileCode,
   History,
   ImageOff,
+  ImagePlus,
   RotateCcw,
   Trash,
   Loader2,
@@ -42,6 +43,7 @@ import {
 import api from "@/lib/axios";
 import { toast } from "sonner";
 import { useAuth } from "@/store/use-auth";
+import { MediaPicker } from "@/components/admin/media/media-picker";
 
 /**
  * Custom pages: island guides, landing pages, policy text.
@@ -113,6 +115,7 @@ export default function CustomPagesPage() {
   const [restoring, setRestoring] = useState(null);
   const [deleted, setDeleted] = useState([]);
   const [showDeleted, setShowDeleted] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const load = async () => {
     try {
@@ -550,13 +553,24 @@ export default function CustomPagesPage() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="featuredImage">Featured image</Label>
-                <Input
-                  id="featuredImage"
-                  value={form.featuredImageUrl}
-                  onChange={set("featuredImageUrl")}
-                  placeholder="https://…/huraa-beach.jpg  or  /uploads/huraa-beach.jpg"
-                  className="font-mono text-sm"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="featuredImage"
+                    value={form.featuredImageUrl}
+                    onChange={set("featuredImageUrl")}
+                    placeholder="https://…/huraa-beach.jpg  or  /uploads/huraa-beach.jpg"
+                    className="font-mono text-sm"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0 gap-1.5"
+                    onClick={() => setPickerOpen(true)}
+                  >
+                    <ImagePlus className="h-4 w-4" />
+                    Library
+                  </Button>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Shown as the banner above the page, and as the picture when
                   the link is shared on WhatsApp, Viber or Facebook. Landscape,
@@ -665,6 +679,15 @@ export default function CustomPagesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <MediaPicker
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onSelect={(asset) => {
+          setImageBroken(false);
+          setForm((f) => ({ ...f, featuredImageUrl: asset.url }));
+        }}
+      />
 
       {/* ----------------------------- history ---------------------------- */}
       <Dialog open={!!historyFor} onOpenChange={(o) => !o && setHistoryFor(null)}>

@@ -154,6 +154,7 @@ model User {
     notifications               Notification[]
     invoicesMarkedPaid          PlatformInvoice[]
     pageRevisions               PageRevision[]
+    mediaAssets                 MediaAsset[]
 
     @@map("users")
 }
@@ -961,4 +962,30 @@ model PageRevision {
     @@index([pageId, createdAt(sort: Desc)], map: "page_revisions_page_idx")
     @@index([reason, createdAt(sort: Desc)], map: "page_revisions_reason_idx")
     @@map("page_revisions")
+}
+
+/// An uploaded file, indexed so the CMS can list it.
+///
+/// The bucket already held the files; nothing recorded that they existed, so
+/// there was nothing to browse and adding an image to a page meant hosting it
+/// elsewhere and pasting a URL.
+///
+/// `storageKey` is the same string every other upload column holds, so a row
+/// here and a vessel photo point at the same object the same way — and both
+/// resolve through /uploads/<key>, wherever storage happens to be.
+model MediaAsset {
+    id           String   @id @default(dbgenerated("gen_random_uuid()::text"))
+    storageKey   String   @unique(map: "media_assets_key_idx") @map("storage_key") @db.VarChar(255)
+    originalName String?  @map("original_name") @db.VarChar(255)
+    mimeType     String?  @map("mime_type") @db.VarChar(100)
+    sizeBytes    Int?     @map("size_bytes")
+    /// Written later, usually by someone other than whoever uploaded the file.
+    altText      String?  @map("alt_text") @db.VarChar(255)
+    uploadedById String?  @map("uploaded_by_id")
+    createdAt    DateTime @default(now()) @map("created_at")
+    updatedAt    DateTime @updatedAt @map("updated_at")
+    uploadedBy   User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+    @@index([createdAt(sort: Desc)], map: "media_assets_created_idx")
+    @@map("media_assets")
 }

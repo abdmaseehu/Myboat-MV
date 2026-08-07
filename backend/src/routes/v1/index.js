@@ -20,6 +20,7 @@ const platformInvoiceRoutes = require('./platform-invoice.routes');
 const customPageRoutes = require('./custom-page.routes');
 const navMenuRoutes = require('./nav-menu.routes');
 const siteFooterRoutes = require('./site-footer.routes');
+const mediaRoutes = require('./media.routes');
 const commissionRoutes = require('./commission.routes');
 const bookingRoutes = require('./booking.routes');
 const mobileAuthRoutes = require('./mobile-auth.routes');
@@ -47,6 +48,7 @@ router.use('/nav', navMenuRoutes.publicRouter);
 router.use('/admin/nav', navMenuRoutes.adminRouter);
 router.use('/footer', siteFooterRoutes.publicRouter);
 router.use('/admin/footer', siteFooterRoutes.adminRouter);
+router.use('/admin/media', mediaRoutes);
 
 // Protected routes (require authentication)
 router.use('/auth', userRoutes);

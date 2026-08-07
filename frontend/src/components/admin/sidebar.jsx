@@ -44,6 +44,7 @@ import {
   FileText,
   FileCode,
   PanelBottom,
+  Image as ImageIcon,
 } from "lucide-react";
 import { useSidebar } from "@/store/use-sidebar";
 import { useAuth } from "@/store/use-auth";
@@ -191,6 +192,12 @@ const adminRoutes = [
         label: "Menus",
         icon: Menu,
         href: "/admin/menus",
+        color: "text-sky-500",
+      },
+      {
+        label: "Media",
+        icon: ImageIcon,
+        href: "/admin/media",
         color: "text-sky-500",
       },
       {
