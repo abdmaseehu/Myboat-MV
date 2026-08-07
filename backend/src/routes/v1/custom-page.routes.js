@@ -9,6 +9,10 @@ const {
   createPage,
   updatePage,
   deletePage,
+  listRevisions,
+  getRevision,
+  restoreRevision,
+  listDeletedPages,
 } = require('../../controllers/v1/custom-page.controller');
 
 /**
@@ -28,6 +32,11 @@ publicRouter.get('/*', getPageBySlug);
 
 adminRouter.use(isAuthenticated, isAdmin);
 adminRouter.get('/', listPages);
+// Static segments before '/:id', or each is read as a page id.
+adminRouter.get('/deleted', listDeletedPages);
+adminRouter.get('/revisions/:revisionId', getRevision);
+adminRouter.post('/revisions/:revisionId/restore', restoreRevision);
+adminRouter.get('/:id/revisions', listRevisions);
 adminRouter.get('/:id', getPageById);
 adminRouter.post('/', createPage);
 adminRouter.patch('/:id', updatePage);

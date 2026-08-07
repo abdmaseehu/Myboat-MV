@@ -28,7 +28,10 @@ import {
 import {
   ExternalLink,
   FileCode,
+  History,
   ImageOff,
+  RotateCcw,
+  Trash,
   Loader2,
   Pencil,
   Plus,
@@ -79,6 +82,14 @@ const normaliseSlug = (raw) =>
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString() : "—");
 
+/** Why a snapshot exists, in words rather than the stored constant. */
+const REASON_LABEL = {
+  EDIT: "before an edit",
+  DELETE: "before deletion",
+  RESTORE: "before a restore",
+  BULK: "before a bulk change",
+};
+
 export default function CustomPagesPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "ADMIN";
@@ -94,14 +105,55 @@ export default function CustomPagesPage() {
   const [deleting, setDeleting] = useState(null);
   const [imageBroken, setImageBroken] = useState(false);
 
+  // Revision history: what a page looked like before each change, and the
+  // pages that no longer exist but can still come back.
+  const [historyFor, setHistoryFor] = useState(null);
+  const [revisions, setRevisions] = useState([]);
+  const [revisionsLoading, setRevisionsLoading] = useState(false);
+  const [restoring, setRestoring] = useState(null);
+  const [deleted, setDeleted] = useState([]);
+  const [showDeleted, setShowDeleted] = useState(false);
+
   const load = async () => {
     try {
-      const res = await api.get("/admin/pages");
-      setPages(res?.data?.data || []);
+      const [list, gone] = await Promise.allSettled([
+        api.get("/admin/pages"),
+        api.get("/admin/pages/deleted"),
+      ]);
+      if (list.status === "fulfilled") setPages(list.value?.data?.data || []);
+      if (gone.status === "fulfilled") setDeleted(gone.value?.data?.data || []);
     } catch (err) {
       toast.error(err?.response?.data?.message || "Could not load pages");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openHistory = async (page) => {
+    setHistoryFor(page);
+    setRevisions([]);
+    try {
+      setRevisionsLoading(true);
+      const res = await api.get(`/admin/pages/${page.id}/revisions`);
+      setRevisions(res?.data?.data || []);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Could not load the history");
+    } finally {
+      setRevisionsLoading(false);
+    }
+  };
+
+  const restore = async (revisionId) => {
+    try {
+      setRestoring(revisionId);
+      const res = await api.post(`/admin/pages/revisions/${revisionId}/restore`);
+      toast.success(res?.data?.message || "Restored");
+      setHistoryFor(null);
+      await load();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Could not restore that version");
+    } finally {
+      setRestoring(null);
     }
   };
 
@@ -260,10 +312,68 @@ export default function CustomPagesPage() {
             /pages/… without a deploy.
           </p>
         </div>
-        <Button onClick={openNew} className="gap-2">
-          <Plus className="h-4 w-4" /> New page
-        </Button>
+        <div className="flex items-center gap-2">
+          {deleted.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleted((v) => !v)}
+              className="gap-2"
+            >
+              <Trash className="h-4 w-4" />
+              Deleted ({deleted.length})
+            </Button>
+          )}
+          <Button onClick={openNew} className="gap-2">
+            <Plus className="h-4 w-4" /> New page
+          </Button>
+        </div>
       </div>
+
+      {showDeleted && deleted.length > 0 && (
+        <Card className="border-amber-300/60">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Trash className="h-4 w-4 text-amber-600" />
+              Deleted pages
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Kept indefinitely. Restoring brings back the page exactly as it
+              was when it was deleted, at the same path.
+            </p>
+            {deleted.map((d) => (
+              <div
+                key={d.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"
+              >
+                <div className="min-w-0">
+                  <div className="font-medium">{d.title}</div>
+                  <code className="text-xs text-muted-foreground">/pages/{d.slug}</code>
+                  <div className="text-[11px] text-muted-foreground">
+                    Deleted {fmtDate(d.createdAt)}
+                    {d.createdBy?.firstName ? ` by ${d.createdBy.firstName}` : ""}
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={restoring === d.id}
+                  onClick={() => restore(d.id)}
+                >
+                  {restoring === d.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  )}
+                  Restore
+                </Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
@@ -342,6 +452,16 @@ export default function CustomPagesPage() {
                             </a>
                           </Button>
                         )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => openHistory(p)}
+                          aria-label="Page history"
+                          title="History"
+                        >
+                          <History className="h-4 w-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -546,6 +666,76 @@ export default function CustomPagesPage() {
         </DialogContent>
       </Dialog>
 
+      {/* ----------------------------- history ---------------------------- */}
+      <Dialog open={!!historyFor} onOpenChange={(o) => !o && setHistoryFor(null)}>
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>History — {historyFor?.title}</DialogTitle>
+            <DialogDescription>
+              A snapshot is taken before every change. Restoring one snapshots
+              what it replaces, so a restore can itself be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          {revisionsLoading ? (
+            <div className="flex min-h-[160px] items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-sky-500" />
+            </div>
+          ) : revisions.length === 0 ? (
+            <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+              No earlier versions yet. The next edit will record one.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {revisions.map((r) => (
+                <div
+                  key={r.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      {new Date(r.createdAt).toLocaleString()}
+                      <Badge variant="outline" className="text-[10px]">
+                        {REASON_LABEL[r.reason] || r.reason}
+                      </Badge>
+                      {!r.isPublished && (
+                        <Badge variant="outline" className="border-amber-400 text-[10px] text-amber-700">
+                          Draft
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {r.title} · {(r.contentLength / 1024).toFixed(1)} KB
+                      {r.createdBy?.firstName ? ` · ${r.createdBy.firstName}` : ""}
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={restoring === r.id}
+                    onClick={() => restore(r.id)}
+                  >
+                    {restoring === r.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-3.5 w-3.5" />
+                    )}
+                    Restore
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHistoryFor(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -555,8 +745,8 @@ export default function CustomPagesPage() {
               <code className="rounded bg-muted px-1 py-0.5">
                 /pages/{deleting?.slug}
               </code>{" "}
-              will be removed and the URL will start returning 404. This cannot
-              be undone.
+              will be removed and the URL will start returning 404. It is kept
+              under <b>Deleted</b> and can be restored at any time.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

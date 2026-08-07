@@ -153,6 +153,7 @@ model User {
     checkins                    Checkin[]
     notifications               Notification[]
     invoicesMarkedPaid          PlatformInvoice[]
+    pageRevisions               PageRevision[]
 
     @@map("users")
 }
@@ -928,4 +929,36 @@ model NavMenuItem {
 
     @@index([location, sortOrder], map: "nav_menu_items_location_idx")
     @@map("nav_menu_items")
+}
+
+/// A page as it was, snapshotted before something overwrote it.
+///
+/// `pageId` is deliberately not a relation. A revision has to outlive its
+/// page: the version most worth having back is the one taken just before
+/// someone deleted it, and a cascade would remove exactly that. Orphans are
+/// the price, and pruning to the most recent few per page keeps them bounded.
+///
+/// Whole snapshots rather than diffs. A diff is smaller but needs the entire
+/// chain intact to reconstruct anything; a snapshot stands alone, which is the
+/// only property that counts at the moment someone needs one.
+model PageRevision {
+    id               String   @id @default(dbgenerated("gen_random_uuid()::text"))
+    pageId           String   @map("page_id")
+    title            String   @db.VarChar(255)
+    slug             String   @db.VarChar(255)
+    htmlContent      String?  @map("html_content")
+    metaTitle        String?  @map("meta_title") @db.VarChar(255)
+    metaDescription  String?  @map("meta_description")
+    featuredImageUrl String?  @map("featured_image_url") @db.VarChar(500)
+    schemaJson       String?  @map("schema_json")
+    isPublished      Boolean  @default(true) @map("is_published")
+    /// EDIT, DELETE, RESTORE or BULK — why this snapshot exists.
+    reason           String   @default("EDIT") @db.VarChar(20)
+    createdById      String?  @map("created_by_id")
+    createdAt        DateTime @default(now()) @map("created_at")
+    createdBy        User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+    @@index([pageId, createdAt(sort: Desc)], map: "page_revisions_page_idx")
+    @@index([reason, createdAt(sort: Desc)], map: "page_revisions_reason_idx")
+    @@map("page_revisions")
 }

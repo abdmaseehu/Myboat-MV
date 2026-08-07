@@ -1,6 +1,11 @@
 const { PrismaClient } = require('@prisma/client');
 const { z } = require('zod');
 const { sanitizeCmsHtml } = require('../../utils/sanitize-html');
+const {
+  snapshotPage,
+  revisionToPage,
+  KEEP_PER_PAGE,
+} = require('../../utils/page-revisions');
 
 const prisma = new PrismaClient();
 
@@ -277,6 +282,15 @@ const updatePage = async (req, res) => {
     if (Object.keys(row).length === 0) {
       return res.status(400).json({ success: false, message: 'Nothing to update' });
     }
+
+    // The version being replaced, kept before it is replaced. Read from the
+    // stored row rather than the request, so it is what was actually live.
+    const before = await prisma.customPage.findUnique({ where: { id: req.params.id } });
+    if (!before) {
+      return res.status(404).json({ success: false, message: 'Page not found' });
+    }
+    await snapshotPage(prisma, before, { reason: 'EDIT', userId: req.user?.id });
+
     const page = await prisma.customPage.update({ where: { id: req.params.id }, data: row });
     return res.json({
       success: true,
@@ -305,8 +319,14 @@ const updatePage = async (req, res) => {
 // DELETE /admin/pages/:id
 const deletePage = async (req, res) => {
   try {
+    // Snapshot first: this is the version most likely to be wanted back, and
+    // once the row is gone there is nothing left to copy.
+    const before = await prisma.customPage.findUnique({ where: { id: req.params.id } });
+    if (before) {
+      await snapshotPage(prisma, before, { reason: 'DELETE', userId: req.user?.id });
+    }
     await prisma.customPage.delete({ where: { id: req.params.id } });
-    return res.json({ success: true, message: 'Page deleted' });
+    return res.json({ success: true, message: 'Page deleted - restorable from Deleted pages' });
   } catch (error) {
     // Already gone is the same end state as deleted.
     if (error.code === 'P2025') {
@@ -317,7 +337,167 @@ const deletePage = async (req, res) => {
   }
 };
 
+/* ------------------------------ revisions -------------------------------- */
+
+// GET /admin/pages/:id/revisions - the history, without the bodies
+const listRevisions = async (req, res) => {
+  try {
+    const revisions = await prisma.pageRevision.findMany({
+      where: { pageId: req.params.id },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        isPublished: true,
+        reason: true,
+        createdAt: true,
+        createdBy: { select: { firstName: true, lastName: true } },
+        // A body can be tens of kilobytes; the list only needs its size.
+        htmlContent: true,
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Revisions retrieved',
+      data: revisions.map(({ htmlContent, ...r }) => ({
+        ...r,
+        contentLength: htmlContent ? htmlContent.length : 0,
+      })),
+      meta: { keptPerPage: KEEP_PER_PAGE },
+    });
+  } catch (error) {
+    console.error('listRevisions error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// GET /admin/pages/revisions/:revisionId - one version in full, to preview
+const getRevision = async (req, res) => {
+  try {
+    const revision = await prisma.pageRevision.findUnique({
+      where: { id: req.params.revisionId },
+      include: { createdBy: { select: { firstName: true, lastName: true } } },
+    });
+    if (!revision) {
+      return res.status(404).json({ success: false, message: 'Revision not found' });
+    }
+    return res.json({ success: true, message: 'Revision retrieved', data: revision });
+  } catch (error) {
+    console.error('getRevision error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * POST /admin/pages/revisions/:revisionId/restore
+ *
+ * Puts a version back, snapshotting what it replaced on the way - restoring is
+ * itself an overwrite, and undoing a restore is a thing people need.
+ *
+ * Also brings back a deleted page: the row is recreated from the snapshot,
+ * which is precisely why a DELETE revision is never pruned.
+ */
+const restoreRevision = async (req, res) => {
+  try {
+    const revision = await prisma.pageRevision.findUnique({
+      where: { id: req.params.revisionId },
+    });
+    if (!revision) {
+      return res.status(404).json({ success: false, message: 'Revision not found' });
+    }
+
+    const current = await prisma.customPage.findUnique({ where: { id: revision.pageId } });
+    const fields = revisionToPage(revision);
+
+    if (current) {
+      await snapshotPage(prisma, current, { reason: 'RESTORE', userId: req.user?.id });
+      const page = await prisma.customPage.update({
+        where: { id: revision.pageId },
+        data: fields,
+      });
+      return res.json({
+        success: true,
+        message: 'Restored the version from ' + new Date(revision.createdAt).toISOString(),
+        data: page,
+      });
+    }
+
+    // The page is gone: recreate it, keeping its id so its history follows it.
+    const clash = await prisma.customPage.findUnique({ where: { slug: fields.slug } });
+    if (clash) {
+      return res.status(409).json({
+        success: false,
+        message: 'Another page now uses the path /' + fields.slug + '. Change that one first.',
+      });
+    }
+
+    const page = await prisma.customPage.create({
+      data: { id: revision.pageId, ...fields },
+    });
+    return res.status(201).json({ success: true, message: 'Page restored', data: page });
+  } catch (error) {
+    if (error.code === 'P2002') {
+      return res
+        .status(409)
+        .json({ success: false, message: 'Another page already uses that path' });
+    }
+    console.error('restoreRevision error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * GET /admin/pages/deleted - pages that no longer exist but can come back.
+ *
+ * A DELETE snapshot whose page id no longer resolves. Deleting and recreating
+ * the same path is normal, so the check is on the id, not the slug.
+ */
+const listDeletedPages = async (req, res) => {
+  try {
+    const deletions = await prisma.pageRevision.findMany({
+      where: { reason: 'DELETE' },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        pageId: true,
+        title: true,
+        slug: true,
+        createdAt: true,
+        createdBy: { select: { firstName: true, lastName: true } },
+      },
+    });
+    if (deletions.length === 0) {
+      return res.json({ success: true, message: 'No deleted pages', data: [] });
+    }
+
+    const live = await prisma.customPage.findMany({
+      where: { id: { in: deletions.map((d) => d.pageId) } },
+      select: { id: true },
+    });
+    const liveIds = new Set(live.map((page) => page.id));
+
+    // One entry per page: its most recent deletion.
+    const seen = new Set();
+    const data = deletions.filter((d) => {
+      if (liveIds.has(d.pageId) || seen.has(d.pageId)) return false;
+      seen.add(d.pageId);
+      return true;
+    });
+
+    return res.json({ success: true, message: 'Deleted pages retrieved', data });
+  } catch (error) {
+    console.error('listDeletedPages error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
+  listRevisions,
+  getRevision,
+  restoreRevision,
+  listDeletedPages,
   getPageBySlug,
   listPublishedPages,
   listPages,
