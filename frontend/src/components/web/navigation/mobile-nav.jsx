@@ -178,7 +178,7 @@ export function MobileNav({ isOpen, user, onLogout, onDashboard, onClose }) {
                 onClick={onClose}
                 className="w-full bg-coral hover:bg-coral-soft text-white rounded-full h-14 text-base font-medium shadow-coral tracking-wide"
               >
-                <Link href="/bus-tickets">Book Now</Link>
+                <Link href="/ferry">Book Now</Link>
               </Button>
 
               <div className="grid grid-cols-1 gap-2 text-sm text-ocean/80">

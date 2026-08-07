@@ -9,7 +9,15 @@ import { Button } from "@/components/ui/button";
 import TicketList from "@/components/web/bus-tickets/ticket-list";
 import SearchForm from "@/components/web/bus-tickets/search-form";
 
-function BusTicketsContent() {
+/**
+ * Ferry search and results.
+ *
+ * Arriving with no route — which is what the "Ferry" link in the header does —
+ * used to render the results list with nothing to list, so the first thing a
+ * visitor saw was "No Boats Found" before they had searched for anything. A
+ * page with no query is a search page, not an empty result.
+ */
+function FerryContent() {
   const searchParams = useSearchParams();
   const [showSearchForm, setShowSearchForm] = useState(false);
 
@@ -17,6 +25,29 @@ function BusTicketsContent() {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   const searchDate = searchParams.get("date");
+
+  // Nothing searched yet: show the form, not an empty result.
+  if (!routeId) {
+    return (
+      <div className="min-h-screen bg-sand-gradient">
+        <div className="container-x py-12 md:py-20">
+          <div className="mx-auto max-w-3xl text-center">
+            <h1 className="text-3xl font-bold tracking-tight text-ocean-deep md:text-5xl">
+              Where are you sailing?
+            </h1>
+            <p className="mt-3 text-muted-foreground md:text-lg">
+              Scheduled ferries across the Maldives. Pick your islands and date
+              to see every departure.
+            </p>
+          </div>
+
+          <div className="glass-white shadow-premium mx-auto mt-8 max-w-5xl rounded-3xl p-5 md:mt-10 md:p-8">
+            <SearchForm />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-sand-gradient">
@@ -79,7 +110,7 @@ function BusTicketsContent() {
   );
 }
 
-export default function BusTicketsPage() {
+export default function FerryPage() {
   return (
     <Suspense
       fallback={
@@ -88,7 +119,7 @@ export default function BusTicketsPage() {
         </div>
       }
     >
-      <BusTicketsContent />
+      <FerryContent />
     </Suspense>
   );
 }

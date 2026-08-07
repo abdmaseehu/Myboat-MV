@@ -197,7 +197,7 @@ export default async function OperatorPublicPage({ params }) {
                       asChild
                       className="mt-2 w-full bg-sky-500 text-white hover:bg-sky-600"
                     >
-                      <Link href={`/bus-tickets?vessel=${v.id}`}>Book Now</Link>
+                      <Link href={`/ferry?vessel=${v.id}`}>Book Now</Link>
                     </Button>
                   </CardContent>
                 </Card>

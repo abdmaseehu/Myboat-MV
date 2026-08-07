@@ -105,7 +105,7 @@ export default async function EmbedOperatorPage({ params }) {
                     className="mt-1 w-full bg-sky-500 text-white hover:bg-sky-600"
                   >
                     <a
-                      href={`${APP_URL}/bus-tickets?vessel=${v.id}`}
+                      href={`${APP_URL}/ferry?vessel=${v.id}`}
                       target="_top"
                       rel="noopener noreferrer"
                     >

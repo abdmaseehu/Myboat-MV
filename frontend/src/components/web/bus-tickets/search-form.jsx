@@ -42,7 +42,7 @@ import { CARGO_TYPES } from "@/lib/cargo-types";
 import { toast } from "sonner";
 
 const TABS = [
-  { id: "ferry", label: "Ferry", href: "/bus-tickets" },
+  { id: "ferry", label: "Ferry", href: "/ferry" },
   { id: "charter", label: "Private Charter", href: "/charter" },
   { id: "logistics", label: "Logistics", href: "/logistics" },
 ];
@@ -151,7 +151,7 @@ export default function SearchForm({
       );
       if (selectedRoute) {
         await new Promise((r) => setTimeout(r, 500));
-        const url = `/bus-tickets?route-id=${selectedRoute.id}&from=${encodeURIComponent(
+        const url = `/ferry?route-id=${selectedRoute.id}&from=${encodeURIComponent(
           formData.sourceCity
         )}&to=${encodeURIComponent(formData.destinationCity)}&date=${format(date, "yyyy-MM-dd")}`;
         router.push(url);
@@ -169,7 +169,20 @@ export default function SearchForm({
   const inputClass =
     "w-full h-14 rounded-2xl border border-border/60 bg-white hover:bg-foam focus:bg-white transition-colors px-4 text-ocean-deep font-medium data-[placeholder]:text-muted-foreground";
 
-  const FormContent = () => (
+  /**
+   * The form as an element, not a component.
+   *
+   * This used to be an arrow function declared here in the body and rendered
+   * as a JSX tag. React compares component types by identity, and a function
+   * created during render is a new type every time — so the whole form was
+   * unmounted and rebuilt whenever any state changed.
+   *
+   * The visible effect: a dropdown closed the instant it was clicked, because
+   * opening it set state, which remounted the select underneath it. Islands
+   * could not be chosen at all. Holding the JSX in a variable keeps one tree
+   * alive across renders.
+   */
+  const formContent = (
     <div className={cn("w-full", className)}>
       {/* Tabs */}
       <div className="flex items-center gap-1 p-1 rounded-full bg-foam/80 border border-border/50 w-fit mx-auto md:mx-0 mb-6">
@@ -475,13 +488,13 @@ export default function SearchForm({
           <DialogHeader>
             <DialogTitle className="text-ocean-deep">Modify Search</DialogTitle>
           </DialogHeader>
-          <FormContent />
+          {formContent}
         </DialogContent>
       </Dialog>
     );
   }
 
-  return <FormContent />;
+  return formContent;
 }
 
 function FieldWrap({ label, icon: Icon, children }) {

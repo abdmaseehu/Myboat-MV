@@ -12,7 +12,7 @@ import { Handshake, Ship, Ticket, LogOut, Loader2 } from "lucide-react";
 const NAV = [
   { label: "My Partnerships", href: "/agent/partners", icon: Handshake },
   { label: "Find Operators", href: "/agent/operators", icon: Ship },
-  { label: "Book a Trip", href: "/bus-tickets", icon: Ticket },
+  { label: "Book a Trip", href: "/ferry", icon: Ticket },
 ];
 
 /**

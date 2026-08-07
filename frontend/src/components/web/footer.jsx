@@ -6,7 +6,7 @@ import { useSiteFooter } from "@/hooks/use-site-footer";
 
 const explore = [
   { href: "/", label: "Home" },
-  { href: "/bus-tickets", label: "Ferry Tickets" },
+  { href: "/ferry", label: "Ferry Tickets" },
   { href: "/charter", label: "Private Charter" },
   { href: "/logistics", label: "Logistics" },
 ];

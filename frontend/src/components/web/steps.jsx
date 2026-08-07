@@ -11,7 +11,7 @@ const services = [
     desc: "Public and speedboat ferry connections between islands — book a seat in seconds.",
     image:
       "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?q=80&w=1600&auto=format&fit=crop",
-    href: "/bus-tickets",
+    href: "/ferry",
     cta: "Search ferries",
   },
   {

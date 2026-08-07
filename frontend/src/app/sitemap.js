@@ -23,7 +23,7 @@ export const dynamic = 'force-dynamic';
  */
 const STATIC_ROUTES = [
   { path: '/', priority: 1.0, changeFrequency: 'daily' },
-  { path: '/bus-tickets', priority: 0.9, changeFrequency: 'daily' },
+  { path: '/ferry', priority: 0.9, changeFrequency: 'daily' },
   { path: '/charter', priority: 0.9, changeFrequency: 'weekly' },
   { path: '/logistics', priority: 0.8, changeFrequency: 'weekly' },
   { path: '/services', priority: 0.6, changeFrequency: 'monthly' },

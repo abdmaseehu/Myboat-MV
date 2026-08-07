@@ -95,7 +95,7 @@ export default function AgentPartnersPage() {
           {active.length > 0 && (
             <p className="text-sm text-muted-foreground">
               {active.length} active {active.length === 1 ? "partner" : "partners"} —
-              book through <Link href="/bus-tickets" className="text-sky-600 underline">Book a Trip</Link> to
+              book through <Link href="/ferry" className="text-sky-600 underline">Book a Trip</Link> to
               get your rate.
             </p>
           )}

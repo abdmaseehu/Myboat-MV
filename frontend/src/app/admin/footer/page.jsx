@@ -34,7 +34,7 @@ const STARTER = `<div style="background:#0b2a3d;color:#e8f1f5;padding:48px 24px"
     </div>
     <div>
       <h4 style="margin:0 0 8px;font-size:14px;letter-spacing:.08em;text-transform:uppercase;opacity:.6">Explore</h4>
-      <a href="/bus-tickets" style="display:block;color:#e8f1f5;text-decoration:none;padding:4px 0">Ferry Tickets</a>
+      <a href="/ferry" style="display:block;color:#e8f1f5;text-decoration:none;padding:4px 0">Ferry Tickets</a>
       <a href="/charter" style="display:block;color:#e8f1f5;text-decoration:none;padding:4px 0">Private Charter</a>
       <a href="/logistics" style="display:block;color:#e8f1f5;text-decoration:none;padding:4px 0">Logistics</a>
     </div>

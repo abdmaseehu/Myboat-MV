@@ -29,7 +29,7 @@ export default function robots() {
           // found on their own.
           '/embed/',
           // Search results with query strings: infinite, and thin.
-          '/bus-tickets?',
+          '/ferry?',
           '/charter/search',
           '/logistics/search',
         ],

@@ -166,7 +166,7 @@ export default async function EmbedRoutesPage({ searchParams }) {
                             className="bg-sky-500 text-white hover:bg-sky-600"
                           >
                             <a
-                              href={`${APP_URL}/bus-tickets?from=${encodeURIComponent(
+                              href={`${APP_URL}/ferry?from=${encodeURIComponent(
                                 route.sourceCity
                               )}&to=${encodeURIComponent(
                                 route.destinationCity

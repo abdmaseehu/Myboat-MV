@@ -100,7 +100,7 @@ export default async function EmbedVesselPage({ params }) {
 
           <Button asChild className="w-full bg-sky-500 text-white hover:bg-sky-600">
             <a
-              href={`${APP_URL}/bus-tickets?vessel=${vessel.id}`}
+              href={`${APP_URL}/ferry?vessel=${vessel.id}`}
               target="_top"
               rel="noopener noreferrer"
             >

@@ -16,7 +16,7 @@ import { useEffect, useState } from "react";
  */
 const FALLBACK = [
   { id: "f-home", label: "Home", url: "/", openInNewTab: false },
-  { id: "f-ferry", label: "Ferry", url: "/bus-tickets", openInNewTab: false },
+  { id: "f-ferry", label: "Ferry", url: "/ferry", openInNewTab: false },
   { id: "f-charter", label: "Charter", url: "/charter", openInNewTab: false },
   { id: "f-logistics", label: "Logistics", url: "/logistics", openInNewTab: false },
   { id: "f-about", label: "About", url: "/about", openInNewTab: false },

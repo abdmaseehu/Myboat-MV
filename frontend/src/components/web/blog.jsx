@@ -44,7 +44,7 @@ export default function Blog() {
               asChild
               className="bg-coral hover:bg-coral-soft text-white rounded-full h-14 px-8 text-base font-medium shadow-coral tracking-wide"
             >
-              <Link href="/bus-tickets">
+              <Link href="/ferry">
                 Book a ferry <ArrowRight className="h-4 w-4 ml-1.5" />
               </Link>
             </Button>

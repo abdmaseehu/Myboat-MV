@@ -10,28 +10,28 @@ const destinations = [
     atoll: "Kaafu Atoll",
     image:
       "https://images.unsplash.com/photo-1514282401047-d79a71a590e8?q=80&w=1200&auto=format&fit=crop",
-    href: "/bus-tickets",
+    href: "/ferry",
   },
   {
     name: "Dhigurah",
     atoll: "Ari Atoll",
     image:
       "https://images.unsplash.com/photo-1583212292454-1fe6229603b7?q=80&w=1200&auto=format&fit=crop",
-    href: "/bus-tickets",
+    href: "/ferry",
   },
   {
     name: "Ukulhas",
     atoll: "Ari Atoll",
     image:
       "https://images.unsplash.com/photo-1590523277543-a94d2e4eb00b?q=80&w=1200&auto=format&fit=crop",
-    href: "/bus-tickets",
+    href: "/ferry",
   },
   {
     name: "Dhiffushi",
     atoll: "Kaafu Atoll",
     image:
       "https://images.unsplash.com/photo-1544551763-46a013bb70d5?q=80&w=1200&auto=format&fit=crop",
-    href: "/bus-tickets",
+    href: "/ferry",
   },
 ];
 

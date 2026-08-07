@@ -135,7 +135,7 @@ export default async function EmbedVesselsPage({ searchParams }) {
                   className="w-full bg-sky-500 text-white hover:bg-sky-600"
                 >
                   <a
-                    href={`${APP_URL}/bus-tickets?vessel=${vessel.id}`}
+                    href={`${APP_URL}/ferry?vessel=${vessel.id}`}
                     target="_top"
                     rel="noopener noreferrer"
                   >
