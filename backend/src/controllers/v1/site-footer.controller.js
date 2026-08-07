@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const { z } = require('zod');
+const { sanitizeCmsHtml } = require('../../utils/sanitize-html');
 
 const prisma = new PrismaClient();
 
@@ -86,6 +87,16 @@ const updateFooter = async (req, res) => {
   try {
     const data = footerSchema.parse(req.body || {});
 
+    // Sanitised before it is stored, like a page body: this markup renders on
+    // the bottom of every page on the site, so it is the widest-reaching
+    // paste there is.
+    let stripped = [];
+    if (data.html) {
+      const { clean, removed } = sanitizeCmsHtml(data.html);
+      data.html = clean;
+      stripped = removed;
+    }
+
     const writes = [];
     if (data.mode !== undefined) {
       writes.push(write(KEYS.mode, data.mode, 'Site footer: DEFAULT or CUSTOM'));
@@ -108,6 +119,8 @@ const updateFooter = async (req, res) => {
       message:
         footer.mode === 'CUSTOM' && !footer.active
           ? 'Saved — but the custom footer is empty, so the built-in one is still showing'
+          : stripped.length
+          ? `Footer saved — ${stripped.slice(0, 6).join(', ')} removed as unsafe`
           : 'Footer saved',
       data: footer,
     });

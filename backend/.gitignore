@@ -28,4 +28,4 @@ logs/
 Thumbs.db
 
 # Prisma
-prisma/*.db 
+prisma/*.db _v17_backup.json

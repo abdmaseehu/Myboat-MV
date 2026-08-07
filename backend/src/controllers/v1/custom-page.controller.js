@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const { z } = require('zod');
+const { sanitizeCmsHtml } = require('../../utils/sanitize-html');
 
 const prisma = new PrismaClient();
 
@@ -105,14 +106,37 @@ const updateSchema = pageSchema.partial();
 
 const blankToNull = (v) => (v === undefined ? undefined : String(v ?? '').trim() === '' ? null : v);
 
-/** What the write endpoints accept, with empty strings read as "not set". */
+/**
+ * What the write endpoints accept, with empty strings read as "not set".
+ *
+ * The body is sanitised here rather than on the way out, so what is stored is
+ * what is safe: nothing downstream has to remember to clean it, and a page
+ * read straight from the database by some future report or export cannot
+ * carry a payload.
+ *
+ * Returns what was stripped alongside the row, so the author is told rather
+ * than silently handed back something different from what they wrote.
+ */
 const toRow = (data) => {
   const row = { ...data };
   ['htmlContent', 'metaTitle', 'metaDescription', 'featuredImageUrl', 'schemaJson'].forEach((k) => {
     if (k in row) row[k] = blankToNull(row[k]);
   });
-  return row;
+
+  let stripped = [];
+  if (row.htmlContent) {
+    const { clean, removed } = sanitizeCmsHtml(row.htmlContent);
+    row.htmlContent = clean;
+    stripped = removed;
+  }
+  return { row, stripped };
 };
+
+/** A sentence an author can act on, or nothing when nothing was touched. */
+const strippedNote = (stripped) =>
+  stripped.length
+    ? ` — ${stripped.slice(0, 6).join(', ')} ${stripped.length === 1 ? 'was' : 'were'} removed as unsafe`
+    : '';
 
 const zodMessage = (error) =>
   error.errors.map((e) => `${e.path.join('.') || 'form'}: ${e.message}`).join('; ');
@@ -223,9 +247,13 @@ const getPageById = async (req, res) => {
 // POST /admin/pages
 const createPage = async (req, res) => {
   try {
-    const data = toRow(pageSchema.parse(req.body || {}));
-    const page = await prisma.customPage.create({ data });
-    return res.status(201).json({ success: true, message: 'Page created', data: page });
+    const { row, stripped } = toRow(pageSchema.parse(req.body || {}));
+    const page = await prisma.customPage.create({ data: row });
+    return res.status(201).json({
+      success: true,
+      message: `Page created${strippedNote(stripped)}`,
+      data: page,
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res
@@ -245,12 +273,16 @@ const createPage = async (req, res) => {
 // PATCH /admin/pages/:id
 const updatePage = async (req, res) => {
   try {
-    const data = toRow(updateSchema.parse(req.body || {}));
-    if (Object.keys(data).length === 0) {
+    const { row, stripped } = toRow(updateSchema.parse(req.body || {}));
+    if (Object.keys(row).length === 0) {
       return res.status(400).json({ success: false, message: 'Nothing to update' });
     }
-    const page = await prisma.customPage.update({ where: { id: req.params.id }, data });
-    return res.json({ success: true, message: 'Page updated', data: page });
+    const page = await prisma.customPage.update({ where: { id: req.params.id }, data: row });
+    return res.json({
+      success: true,
+      message: `Page updated${strippedNote(stripped)}`,
+      data: page,
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res
