@@ -19,6 +19,7 @@ const publicWebRoutes = require('./public-web.routes');
 const platformInvoiceRoutes = require('./platform-invoice.routes');
 const customPageRoutes = require('./custom-page.routes');
 const navMenuRoutes = require('./nav-menu.routes');
+const siteFooterRoutes = require('./site-footer.routes');
 const commissionRoutes = require('./commission.routes');
 const bookingRoutes = require('./booking.routes');
 const mobileAuthRoutes = require('./mobile-auth.routes');
@@ -44,6 +45,8 @@ router.use('/admin/pages', customPageRoutes.adminRouter);
 // The public site's navigation: read by everyone, written by administrators.
 router.use('/nav', navMenuRoutes.publicRouter);
 router.use('/admin/nav', navMenuRoutes.adminRouter);
+router.use('/footer', siteFooterRoutes.publicRouter);
+router.use('/admin/footer', siteFooterRoutes.adminRouter);
 
 // Protected routes (require authentication)
 router.use('/auth', userRoutes);

@@ -373,3 +373,14 @@
 .cms-page th { @apply bg-muted font-semibold; }
 /* A wide pasted table or embed scrolls itself rather than the whole page. */
 .cms-page iframe { @apply max-w-full my-4 rounded-xl; }
+
+/**
+ * A pasted footer (Admin → Content → Footer).
+ *
+ * Deliberately bare: a footer arrives with its own styling, usually inline,
+ * and the site's defaults have no business overriding it. The one rule that
+ * earns its place stops a wide pasted layout from scrolling the whole page
+ * sideways on a phone.
+ */
+.cms-footer { @apply w-full overflow-x-auto; }
+.cms-footer img { @apply max-w-full h-auto; }

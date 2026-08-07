@@ -43,6 +43,7 @@ import {
   QrCode,
   FileText,
   FileCode,
+  PanelBottom,
 } from "lucide-react";
 import { useSidebar } from "@/store/use-sidebar";
 import { useAuth } from "@/store/use-auth";
@@ -190,6 +191,12 @@ const adminRoutes = [
         label: "Menus",
         icon: Menu,
         href: "/admin/menus",
+        color: "text-sky-500",
+      },
+      {
+        label: "Footer",
+        icon: PanelBottom,
+        href: "/admin/footer",
         color: "text-sky-500",
       },
       {

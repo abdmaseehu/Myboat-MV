@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { Mail, Phone, MapPin, Instagram, Facebook, Twitter, Anchor } from "lucide-react";
+import { useSiteFooter } from "@/hooks/use-site-footer";
 
 const explore = [
   { href: "/", label: "Home" },
@@ -21,6 +24,20 @@ const support = [
 ];
 
 export function Footer() {
+  // A footer pasted in Admin -> Content -> Footer replaces this one outright.
+  // Until one is live — or if the API cannot be reached — the built-in footer
+  // below is what renders, so the bottom of the page is never empty.
+  const custom = useSiteFooter();
+
+  if (custom.active) {
+    return (
+      <footer
+        className="cms-footer"
+        dangerouslySetInnerHTML={{ __html: custom.html }}
+      />
+    );
+  }
+
   return (
     <footer className="relative bg-ocean-deep text-white/85 overflow-hidden">
       {/* Wave divider top */}
