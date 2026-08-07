@@ -28,4 +28,8 @@ logs/
 Thumbs.db
 
 # Prisma
-prisma/*.db _v17_backup.json
+prisma/*.db
+
+# Content snapshots taken before a bulk rewrite — local safety net, not history
+prisma/seeds/_v17_backup.json
+
