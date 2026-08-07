@@ -108,11 +108,12 @@ const imageUrlField = z
  */
 const ATTACHED_SLUGS = {
   charter: '/charter',
+  logistics: '/logistics',
 };
 
 const TAKEN_SLUGS = new Set([
   'about', 'admin', 'agent', 'api', 'auth', 'contact', 'dashboard', 'embed',
-  'favicon.ico', 'ferry', 'health', 'logistics', 'o', 'pages', 'robots.txt',
+  'favicon.ico', 'ferry', 'health', 'o', 'pages', 'robots.txt',
   'services', 'sitemap.xml', 'uploads', 'users', '_next',
 ]);
 

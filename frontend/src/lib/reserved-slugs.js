@@ -18,6 +18,7 @@
 /** Routes that render CMS copy, keyed by the slug that feeds them. */
 export const ATTACHED_SLUGS = {
   charter: "/charter",
+  logistics: "/logistics",
 };
 
 /** Everything else at the top level, which would shadow a page silently. */
@@ -33,7 +34,6 @@ export const TAKEN_SLUGS = [
   "favicon.ico",
   "ferry",
   "health",
-  "logistics",
   "o",
   "pages",
   "robots.txt",
