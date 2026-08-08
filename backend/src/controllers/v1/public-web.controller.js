@@ -4,6 +4,7 @@ const { z } = require("zod");
 const {
   loadRouteMarkup,
   applyMarkupToSchedule,
+  forPublicSchedule,
   loadCharterConfig,
   applyCharterRateMarkup,
 } = require("../../utils/fare-engine");
@@ -87,7 +88,11 @@ const getVehiclesByRouteId = async (req, res) => {
               vendor: true,
             },
           },
-          bookings: true,
+          // Bookings are deliberately NOT included. `bookings: true` returned
+          // every row for the vessel — passenger names, dates of birth, contact
+          // email and phone — to anyone who ran a search. The seat map gets what
+          // it needs from GET /bookings/vehicle/:id, which returns seat numbers
+          // and nothing else.
         },
         orderBy: {
           layout: {
@@ -116,7 +121,11 @@ const getVehiclesByRouteId = async (req, res) => {
         v.schedules.sort(
           (a, b) => minutesOfDay(a.departureTime) - minutesOfDay(b.departureTime)
         );
-        v.schedules = v.schedules.map((sch) => applyMarkupToSchedule(sch, markup));
+        // Public prices out, operator base and markup withheld: those are
+        // Myboat's margin, and a search response goes straight to a browser.
+        v.schedules = v.schedules.map((sch) =>
+          forPublicSchedule(applyMarkupToSchedule(sch, markup))
+        );
       }
     });
 

@@ -13,6 +13,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Users, Plane, Mail } from "lucide-react";
 import { COUNTRIES, PRIORITY_COUNT } from "@/lib/countries";
+import { seatedBand } from "@/lib/age-bands";
 
 // Required fields, in the order they appear. Used for the "incomplete" check
 // so the rule lives in one place.
@@ -64,6 +65,12 @@ export default function PassengerDetailsForm({
   contactEmail,
   contactPhone,
   onContactChange,
+  // The day they travel, which is what decides an age.
+  travelDate,
+  // Whether this departure actually charges a child less. An operator can
+  // switch the discount off, and badging a full-price seat "Child fare" would
+  // be a lie.
+  childDiscounted = true,
   // Set once the customer tries to pay, so errors aren't shouted at them
   // while the form is still untouched.
   showErrors = false,
@@ -154,11 +161,26 @@ export default function PassengerDetailsForm({
                   </span>
                 )}
               </h3>
-              {p.seatNumber && (
-                <span className="text-xs rounded-full bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 px-2.5 py-1">
-                  Seat {p.seatNumber}
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {/*
+                  The fare band, derived from the date of birth rather than
+                  asked for separately. It appears as soon as there is a date to
+                  read, so a customer sees the child fare applied instead of
+                  wondering whether it will be.
+                */}
+                {p.dateOfBirth &&
+                  childDiscounted &&
+                  seatedBand(p.dateOfBirth, travelDate) === "CHILD" && (
+                    <span className="text-xs rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-2.5 py-1">
+                      Child fare
+                    </span>
+                  )}
+                {p.seatNumber && (
+                  <span className="text-xs rounded-full bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 px-2.5 py-1">
+                    Seat {p.seatNumber}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">

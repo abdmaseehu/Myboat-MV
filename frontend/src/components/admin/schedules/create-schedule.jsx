@@ -14,6 +14,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -51,6 +52,14 @@ const formSchema = z
     priceLocalMvr: z.coerce.number().nonnegative().optional().or(z.nan()),
     priceExpatMvr: z.coerce.number().nonnegative().optional().or(z.nan()),
     priceTouristUsd: z.coerce.number().nonnegative().optional().or(z.nan()),
+    // Does this departure carry a reduced child fare at all?
+    childFareEnabled: z.boolean().default(true),
+    // The child fare in money, per tier. Blank falls back to childPercent.
+    childPriceLocalMvr: z.coerce.number().nonnegative().optional().or(z.nan()),
+    childPriceExpatMvr: z.coerce.number().nonnegative().optional().or(z.nan()),
+    childPriceTouristUsd: z.coerce.number().nonnegative().optional().or(z.nan()),
+    childPercent: z.coerce.number().min(0).max(100).optional().or(z.nan()),
+    infantPercent: z.coerce.number().min(0).max(100).optional().or(z.nan()),
     status: z.enum(["ACTIVE", "CANCELLED", "COMPLETED"]).default("ACTIVE"),
     isActive: z.boolean().default(true),
     isRecurring: z.boolean().default(false),
@@ -98,6 +107,12 @@ export default function CreateSchedule({ open, onClose, onSuccess }) {
       priceLocalMvr: undefined,
       priceExpatMvr: undefined,
       priceTouristUsd: undefined,
+      childFareEnabled: true,
+      childPriceLocalMvr: undefined,
+      childPriceExpatMvr: undefined,
+      childPriceTouristUsd: undefined,
+      childPercent: 50,
+      infantPercent: 0,
       status: "ACTIVE",
       isActive: true,
       isRecurring: false,
@@ -108,6 +123,8 @@ export default function CreateSchedule({ open, onClose, onSuccess }) {
 
   const isRecurring = form.watch("isRecurring");
   const selectedDays = form.watch("daysOfWeek") || [];
+  // The child price boxes are meaningless when the fare is switched off.
+  const childFareEnabled = form.watch("childFareEnabled") !== false;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -185,6 +202,12 @@ export default function CreateSchedule({ open, onClose, onSuccess }) {
         priceLocalMvr: cleanNumber(values.priceLocalMvr),
         priceExpatMvr: cleanNumber(values.priceExpatMvr),
         priceTouristUsd: cleanNumber(values.priceTouristUsd),
+        childFareEnabled: values.childFareEnabled !== false,
+        childPriceLocalMvr: cleanNumber(values.childPriceLocalMvr),
+        childPriceExpatMvr: cleanNumber(values.childPriceExpatMvr),
+        childPriceTouristUsd: cleanNumber(values.childPriceTouristUsd),
+        childPercent: cleanNumber(values.childPercent) ?? 50,
+        infantPercent: cleanNumber(values.infantPercent) ?? 0,
         departureTime: dep.toISOString(),
         arrivalTime: arr.toISOString(),
         departureDate: dep.toISOString(),
@@ -632,6 +655,151 @@ export default function CreateSchedule({ open, onClose, onSuccess }) {
                               value={field.value ?? ""}
                             />
                           </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                <div className="border rounded-lg p-4 space-y-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="font-medium">Child Fare</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Switch this off and a child pays the adult fare — normal
+                        for a short harbour crossing.
+                      </p>
+                    </div>
+                    <FormField
+                      control={form.control}
+                      name="childFareEnabled"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center gap-2 space-y-0 shrink-0">
+                          <FormControl>
+                            <Switch
+                              checked={field.value !== false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel className="!mt-0 cursor-pointer">
+                            {field.value !== false ? "Offered" : "Not offered"}
+                          </FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {childFareEnabled && (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="childPriceLocalMvr"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="flex items-center gap-2">
+                                <span className="h-2.5 w-2.5 rounded-full bg-green-500" />
+                                Child — Local (MVR)
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="Half fare"
+                                  {...field}
+                                  value={field.value ?? ""}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="childPriceExpatMvr"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="flex items-center gap-2">
+                                <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+                                Child — Expat (MVR)
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="Half fare"
+                                  {...field}
+                                  value={field.value ?? ""}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="childPriceTouristUsd"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="flex items-center gap-2">
+                                <span className="h-2.5 w-2.5 rounded-full bg-orange-500" />
+                                Child — Tourist (USD)
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="Half fare"
+                                  {...field}
+                                  value={field.value ?? ""}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Leave a box empty and that tier charges{" "}
+                        {form.watch("childPercent") ?? 50}% of its adult fare.
+                      </p>
+                    </>
+                  )}
+                </div>
+
+                <div className="border rounded-lg p-4 space-y-4">
+                  <div>
+                    <h3 className="font-medium">Infants</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Under 2 years, travelling on a lap. They take no seat, and
+                      no platform markup is added to their fare.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="infantPercent"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2">
+                            <span className="h-2.5 w-2.5 rounded-full bg-violet-500" />
+                            Infant (% of adult fare)
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="1"
+                              min="0"
+                              max="100"
+                              placeholder="0"
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            0 = free, and no platform markup is charged.
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}

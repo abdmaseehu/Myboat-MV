@@ -36,9 +36,24 @@
  */
 
 const TIERS = {
-  LOCAL: { field: 'priceLocalMvr', markup: 'markupLocal', currency: 'MVR' },
-  EXPAT: { field: 'priceExpatMvr', markup: 'markupExpat', currency: 'MVR' },
-  TOURIST: { field: 'priceTouristUsd', markup: 'markupTourist', currency: 'USD' },
+  LOCAL: {
+    field: 'priceLocalMvr',
+    childField: 'childPriceLocalMvr',
+    markup: 'markupLocal',
+    currency: 'MVR',
+  },
+  EXPAT: {
+    field: 'priceExpatMvr',
+    childField: 'childPriceExpatMvr',
+    markup: 'markupExpat',
+    currency: 'MVR',
+  },
+  TOURIST: {
+    field: 'priceTouristUsd',
+    childField: 'childPriceTouristUsd',
+    markup: 'markupTourist',
+    currency: 'USD',
+  },
 };
 
 const SETTING_KEYS = [
@@ -130,6 +145,76 @@ function publicPriceForTier(schedule, markup, tier) {
 }
 
 /**
+ * The operator's own child fare for one tier, before any markup.
+ *
+ * Three settings, in order of how specific they are:
+ *
+ *   childFareEnabled = false   there is no child discount on this departure,
+ *                              so a child pays the adult fare. Normal for a
+ *                              short harbour crossing.
+ *   an explicit price          what the operator typed, in this tier's
+ *                              currency. Named in money, because that is how an
+ *                              operator thinks about a fare.
+ *   neither                    childPercent of the adult fare, which is how
+ *                              every schedule behaved before prices could be
+ *                              set explicitly.
+ */
+function childBaseForTier(schedule, tier, adultBase) {
+  const spec = TIERS[tier];
+  const base = num(adultBase, 0);
+  if (!spec) return base;
+
+  // Only an explicit false turns it off, so a row loaded without the column
+  // (or an older caller) keeps the child fare it had.
+  if (schedule?.childFareEnabled === false) return base;
+
+  const explicit = schedule?.[spec.childField];
+  if (explicit !== null && explicit !== undefined && explicit !== '') {
+    const n = Number(explicit);
+    if (Number.isFinite(n) && n >= 0) return money(n);
+  }
+
+  return money((base * num(schedule?.childPercent, 50)) / 100);
+}
+
+/**
+ * The public fare for each age band in one tier.
+ *
+ * Derived here rather than in the browser for two reasons. The markup is
+ * Myboat's margin and has no business being sent to a customer's device; and a
+ * second implementation of the formula on the client would be free to drift
+ * from this one, which shows up as a checkout that quotes one price and charges
+ * another.
+ *
+ * An infant carries no markup — our cut on a free fare would be a free seat
+ * that costs money.
+ */
+function bandFaresForTier(schedule, markup, tier) {
+  const spec = TIERS[tier];
+  if (!spec) return null;
+  const raw = schedule?.[spec.field];
+  if (raw === null || raw === undefined || raw === '') return null;
+  const base = Number(raw);
+  if (!Number.isFinite(base)) return null;
+
+  const m = num(markup?.[spec.markup], 0);
+  const childBase = childBaseForTier(schedule, tier, base);
+  const infantPct = num(schedule?.infantPercent, 0);
+
+  return {
+    currency: spec.currency,
+    adult: money(base + m),
+    child: money(childBase + m),
+    infant: money((base * infantPct) / 100),
+    // True when a child actually costs less than an adult. A schedule with the
+    // discount switched off still has a child fare — it is just the adult one,
+    // and labelling that "Child fare" on an invoice would be a lie.
+    childDiscounted: childBase < base,
+    infantPercent: infantPct,
+  };
+}
+
+/**
  * Rewrite a schedule's tier prices to their public equivalents.
  *
  * Search and booking both read the same fields, so applying the markup here
@@ -155,7 +240,31 @@ function applyMarkupToSchedule(schedule, markup) {
   if (expat !== null) out.priceExpatMvr = expat;
   if (tourist !== null) out.priceTouristUsd = tourist;
 
+  // Per-band fares, so checkout can price a child without knowing the markup.
+  out.bandFares = {
+    LOCAL: bandFaresForTier(schedule, m, 'LOCAL'),
+    EXPAT: bandFaresForTier(schedule, m, 'EXPAT'),
+    TOURIST: bandFaresForTier(schedule, m, 'TOURIST'),
+  };
+
   return out;
+}
+
+/**
+ * Strip the operator's own figures from a schedule bound for a public
+ * response. What the operator charges and what Myboat adds are internal; the
+ * customer is quoted one number per band.
+ */
+function forPublicSchedule(schedule) {
+  if (!schedule) return schedule;
+  const {
+    operatorPriceLocalMvr,
+    operatorPriceExpatMvr,
+    operatorPriceTouristUsd,
+    appliedMarkup,
+    ...rest
+  } = schedule;
+  return rest;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -360,10 +469,116 @@ const currencyForTier = (tier) => TIERS[tier]?.currency || 'MVR';
  * @param {number} [o.agentDiscountPercent]
  * @param {number} [o.agentCommissionPercent]
  */
+/* -------------------------------------------------------------------------- */
+/*  Age bands                                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Where one band ends and the next begins, in years on the day of travel.
+ *
+ * A band is DERIVED from the date of birth every passenger already gives at
+ * checkout — never from a dropdown someone picked. Asking twice invites a
+ * thirty-year-old to be declared a child, and the fare would follow the
+ * dropdown.
+ *
+ * An infant is under 2 and travels on a lap. A child is 2 to 11. Anyone 12 or
+ * over is an adult. These are the usual thresholds for Maldivian ferry and
+ * speedboat operators.
+ */
+const INFANT_UNDER_YEARS = 2;
+const CHILD_UNDER_YEARS = 12;
+
+/** Whole years completed on `onDate`. Returns null for an unusable date. */
+function ageOn(dateOfBirth, onDate = new Date()) {
+  if (!dateOfBirth) return null;
+  const dob = new Date(dateOfBirth);
+  const at = new Date(onDate);
+  if (Number.isNaN(dob.getTime()) || Number.isNaN(at.getTime())) return null;
+
+  let years = at.getFullYear() - dob.getFullYear();
+  const monthDiff = at.getMonth() - dob.getMonth();
+  // Not yet had this year's birthday.
+  if (monthDiff < 0 || (monthDiff === 0 && at.getDate() < dob.getDate())) years -= 1;
+  return years;
+}
+
+/**
+ * The band a passenger falls into on the day they travel.
+ *
+ * An unreadable or missing date of birth returns ADULT. That is deliberate:
+ * the failure mode of guessing is charging an adult fare to someone who owed
+ * one anyway, whereas guessing the other way hands out free travel to anyone
+ * who leaves the field blank.
+ */
+function bandForDob(dateOfBirth, travelDate = new Date()) {
+  const years = ageOn(dateOfBirth, travelDate);
+  if (years === null || years < 0) return 'ADULT';
+  if (years < INFANT_UNDER_YEARS) return 'INFANT';
+  if (years < CHILD_UNDER_YEARS) return 'CHILD';
+  return 'ADULT';
+}
+
+/**
+ * Count a list of seated passengers into bands, from their dates of birth.
+ *
+ * Infants are not in this list — they take no seat and fill no form — so they
+ * are counted separately and passed in alongside.
+ */
+function countBands(passengers = [], travelDate = new Date()) {
+  const out = { adults: 0, children: 0, infants: 0 };
+  (passengers || []).forEach((p) => {
+    const band = bandForDob(p?.dateOfBirth, travelDate);
+    // A family that buys a seat for an 18-month-old rather than holding them
+    // pays the child fare for it. The free fare is for a lap, but taking a
+    // seat should not cost more than the child in the next one is paying.
+    if (band === 'CHILD' || band === 'INFANT') out.children += 1;
+    else out.adults += 1;
+  });
+  return out;
+}
+
+/**
+ * Split a party into the three age bands.
+ *
+ * Absent counts mean "all adults", which is what every caller meant before
+ * bands existed — so an old call site keeps computing exactly what it did.
+ */
+function resolveParty({ seats = 1, adults, children, infants }) {
+  const given =
+    adults !== undefined || children !== undefined || infants !== undefined;
+  if (!given) return { adults: Math.max(1, Number(seats) || 1), children: 0, infants: 0 };
+  return {
+    adults: Math.max(0, Number(adults) || 0),
+    children: Math.max(0, Number(children) || 0),
+    infants: Math.max(0, Number(infants) || 0),
+  };
+}
+
+/**
+ * Build the full ledger for a booking.
+ *
+ * @param {object} o
+ * @param {number} o.basePerSeat   the operator's ADULT fare for this tier
+ * @param {number} [o.markupPerSeat]
+ * @param {number} [o.seats]       shorthand for a party of adults
+ * @param {number} [o.adults]
+ * @param {number} [o.children]
+ * @param {number} [o.infants]
+ * @param {number} [o.childPercent]   percentage of the adult fare, default 50
+ * @param {number} [o.infantPercent]  default 0 — free
+ */
 function computeFare({
   basePerSeat,
   markupPerSeat = 0,
   seats = 1,
+  adults,
+  children,
+  infants,
+  // The operator's child fare for this tier, already resolved. Falls back to
+  // childPercent so older callers keep working.
+  childBasePerSeat,
+  childPercent = 50,
+  infantPercent = 0,
   tier = 'LOCAL',
   platform,
   agentDiscountPercent = 0,
@@ -372,12 +587,30 @@ function computeFare({
   const currency = currencyForTier(tier);
   const base = num(basePerSeat, 0);
   const markup = num(markupPerSeat, 0);
-  const qty = Math.max(1, Number(seats) || 1);
 
+  const party = resolveParty({ seats, adults, children, infants });
+  const childFare =
+    childBasePerSeat === null || childBasePerSeat === undefined
+      ? money((base * num(childPercent, 50)) / 100)
+      : money(num(childBasePerSeat, 0));
+  const infantFare = money((base * num(infantPercent, 0)) / 100);
+
+  /**
+   * An infant travels on a lap, so it takes no seat — and carries no markup.
+   * Charging Myboat's markup on a free infant would mean a free fare that
+   * costs money, which is not what "free" means to the person paying.
+   */
+  const seated = party.adults + party.children;
+  const qty = Math.max(1, seated + party.infants);
+
+  const baseTotal = money(
+    base * party.adults + childFare * party.children + infantFare * party.infants
+  );
+  const markupTotal = money(markup * seated);
+  const gross = money(baseTotal + markupTotal);
+  // What one adult pays, kept for the callers and screens that quote a
+  // headline price.
   const publicPrice = money(base + markup);
-  const gross = money(publicPrice * qty);
-  const baseTotal = money(base * qty);
-  const markupTotal = money(markup * qty);
 
   const platformPct = money((gross * num(platform?.percentage, 0)) / 100);
   const platformFlat = money(num(platform?.flatFee?.[currency], 0));
@@ -397,7 +630,16 @@ function computeFare({
   return {
     currency,
     publicPricePerSeat: publicPrice,
+    // Everyone travelling, and the ones who occupy a seat.
     seats: qty,
+    seatedCount: seated,
+    party,
+    fares: {
+      adult: money(base + markup),
+      child: money(childFare + markup),
+      // No markup: nothing was charged to add it to.
+      infant: infantFare,
+    },
     gross,
     baseTotal,
     markupTotal,
@@ -413,11 +655,20 @@ function computeFare({
 
 module.exports = {
   TIERS,
+  INFANT_UNDER_YEARS,
+  CHILD_UNDER_YEARS,
+  ageOn,
+  bandForDob,
+  countBands,
+  resolveParty,
   loadPlatformConfig,
   loadRouteMarkup,
   loadRouteMarkups,
   publicPriceForTier,
   applyMarkupToSchedule,
+  bandFaresForTier,
+  childBaseForTier,
+  forPublicSchedule,
   loadCharterConfig,
   applyCharterMarkup,
   applyCharterCommission,

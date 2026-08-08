@@ -405,9 +405,22 @@ model BusSchedule {
     availableSeats      Int            @default(0) @map("available_seats")
     blockedSeats        Int            @default(0) @map("blocked_seats")
     // 3-tier pricing (MVR for local/expat, USD for tourist)
+    // The ADULT fare for each passenger tier. A child or infant fare is
+    // derived from whichever tier applies, rather than stored nine times.
     priceLocalMvr       Decimal?       @map("price_local_mvr") @db.Decimal(10, 2)
     priceExpatMvr       Decimal?       @map("price_expat_mvr") @db.Decimal(10, 2)
     priceTouristUsd     Decimal?       @map("price_tourist_usd") @db.Decimal(10, 2)
+    /// Whether this departure carries a reduced child fare at all. Off means a
+    /// child pays the adult fare — normal for a short harbour crossing.
+    childFareEnabled    Boolean        @default(true) @map("child_fare_enabled")
+    /// The child fare in money, per tier. Null falls back to childPercent, so a
+    /// schedule set up before explicit prices existed keeps its half fare.
+    childPriceLocalMvr    Decimal?     @map("child_price_local_mvr") @db.Decimal(10, 2)
+    childPriceExpatMvr    Decimal?     @map("child_price_expat_mvr") @db.Decimal(10, 2)
+    childPriceTouristUsd  Decimal?     @map("child_price_tourist_usd") @db.Decimal(10, 2)
+    /// Percentage of the adult fare. 50 = half price, 0 = free.
+    childPercent        Decimal        @default(50) @map("child_percent") @db.Decimal(5, 2)
+    infantPercent       Decimal        @default(0) @map("infant_percent") @db.Decimal(5, 2)
     // Recurring schedule
     isRecurring         Boolean        @default(false) @map("is_recurring")
     daysOfWeek          Int[]          @default([]) @map("days_of_week")
@@ -451,6 +464,11 @@ model Booking {
     contactEmail       String?        @map("contact_email")
     contactPhone       String?        @map("contact_phone")
     passengerCategory  PassengerCategory? @map("passenger_category")
+    /// How many of the booked seats were child fares, and how many lap infants
+    /// travelled without one. Adults are seats - childCount; a stored adult
+    /// count could drift from the seat list. Both matter to the manifest.
+    childCount         Int            @default(0) @map("child_count")
+    infantCount        Int            @default(0) @map("infant_count")
     currency           String?        @default("MVR") @db.VarChar(3)
     status             BookingStatus  @default(CONFIRMED)
     isManual           Boolean        @default(false) @map("is_manual")

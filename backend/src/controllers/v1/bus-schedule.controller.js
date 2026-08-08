@@ -17,6 +17,18 @@ const busScheduleSchema = z.object({
   priceLocalMvr: z.coerce.number().nonnegative().optional().nullable(),
   priceExpatMvr: z.coerce.number().nonnegative().optional().nullable(),
   priceTouristUsd: z.coerce.number().nonnegative().optional().nullable(),
+  // The three prices above are the ADULT fare.
+  //
+  // A child fare is either switched off (a child pays the adult fare), named
+  // outright per tier, or left to childPercent. An infant is a percentage,
+  // because "free" is very nearly always the answer.
+  childFareEnabled: z.coerce.boolean().optional(),
+  childPriceLocalMvr: z.coerce.number().nonnegative().optional().nullable(),
+  childPriceExpatMvr: z.coerce.number().nonnegative().optional().nullable(),
+  childPriceTouristUsd: z.coerce.number().nonnegative().optional().nullable(),
+  // Capped at 100: a child costing more than an adult is a typo every time.
+  childPercent: z.coerce.number().min(0).max(100).optional(),
+  infantPercent: z.coerce.number().min(0).max(100).optional(),
   isRecurring: z.boolean().default(false),
   daysOfWeek: z.array(z.number().int().min(0).max(6)).default([]),
   recurrenceEndDate: z.string().datetime().optional().nullable(),

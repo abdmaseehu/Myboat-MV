@@ -1,14 +1,10 @@
 const getStripeInstance = require('../../config/stripe');
 const { z } = require('zod');
+const { priceFerryBooking, PricingError } = require('../../utils/ferry-pricing');
 const { PrismaClient } = require('@prisma/client');
 const { getCurrencyForCategory } = require('../../utils/currency');
 const { resolveAgentTerms } = require('../../utils/agent-pricing');
-const {
-  loadPlatformConfig,
-  loadRouteMarkup,
-  computeFare,
-  currencyForTier,
-} = require('../../utils/fare-engine');
+const { currencyForTier } = require('../../utils/fare-engine');
 const prisma = new PrismaClient();
 
 // Validation schema for seat numbers
@@ -64,6 +60,11 @@ const createBookingSchema = z.object({
   passengers: z.array(passengerSchema).optional(),
   contactEmail: z.string().email('A valid contact email is required').optional().nullable(),
   contactPhone: z.string().optional().nullable(),
+  // Infants take no seat and fill no passenger form, so they cannot be
+  // inferred from either — they are the one band that has to be declared.
+  // Everything else is derived server-side from the passengers' dates of
+  // birth, so a client cannot buy a child fare by saying so.
+  infants: z.coerce.number().int().min(0).max(9).optional(),
 });
 
 // NOTE: BookingStatus in prisma/schema.prisma only has PENDING | CONFIRMED | CANCELLED.
@@ -278,47 +279,16 @@ const createBooking = async (req, res) => {
       requestedAgentId: validatedData.agentId,
     });
 
-    const [platform, routeMarkup] = await Promise.all([
-      loadPlatformConfig(prisma),
-      loadRouteMarkup(prisma, validatedData.routeId),
-    ]);
-
-    const tier = validatedData.passengerCategory || 'LOCAL';
-    const tierField =
-      tier === 'TOURIST'
-        ? 'priceTouristUsd'
-        : tier === 'EXPAT'
-        ? 'priceExpatMvr'
-        : 'priceLocalMvr';
-    const markupField =
-      tier === 'TOURIST' ? 'markupTourist' : tier === 'EXPAT' ? 'markupExpat' : 'markupLocal';
-
-    // The operator's own price for this departure is the only trustworthy base.
-    const scheduleRow = validatedData.scheduleId
-      ? await prisma.busSchedule.findUnique({
-          where: { id: validatedData.scheduleId },
-          select: { priceLocalMvr: true, priceExpatMvr: true, priceTouristUsd: true },
-        })
-      : null;
-
-    const seatCount = Math.max(1, validatedData.seatNumbers.length);
-    // Without a schedule to price against (manual and legacy bookings) fall back
-    // to the submitted total, treated as already-public and markup-free.
-    const hasBase = scheduleRow && scheduleRow[tierField] != null;
-    const basePerSeat = hasBase
-      ? Number(scheduleRow[tierField])
-      : Number(validatedData.totalAmount || 0) / seatCount;
-    const markupPerSeat = hasBase ? routeMarkup[markupField] : 0;
-
-    const fare = computeFare({
-      basePerSeat,
-      markupPerSeat,
-      seats: seatCount,
-      tier,
-      platform,
-      agentDiscountPercent: agentTerms.discountPercent,
-      agentCommissionPercent: agentTerms.commissionPercent,
-    });
+    let priced;
+    try {
+      priced = await priceFerryBooking(prisma, validatedData, agentTerms);
+    } catch (err) {
+      if (err instanceof PricingError) {
+        return res.status(err.statusCode).json({ success: false, message: err.message });
+      }
+      throw err;
+    }
+    const { fare, bands: seatedBands, infantCount } = priced;
 
     // Create booking record
     const booking = await prisma.booking.create({
@@ -342,6 +312,10 @@ const createBooking = async (req, res) => {
         contactEmail: validatedData.contactEmail || validatedData.customerEmail || null,
         contactPhone: validatedData.contactPhone || validatedData.customerPhone || null,
         passengerCategory: validatedData.passengerCategory,
+        // Adults are seats minus children, so only these two are stored — a
+        // third column could drift out of step with the seat list.
+        childCount: seatedBands.children,
+        infantCount,
         // Currency is ALWAYS derived from passenger category (MVR/USD independent).
         // Currency follows the tier and nothing else: LOCAL and EXPAT settle in
         // MVR, TOURIST in USD. Never read from the request.

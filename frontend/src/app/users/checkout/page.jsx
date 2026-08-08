@@ -16,6 +16,8 @@ import api from "@/lib/axios";
 import PaymentForm from "@/components/web/payment/payment-element";
 import { useSettings } from "@/hooks/use-settings";
 import { useAuth } from "@/store/use-auth";
+import InfantPicker from "@/components/web/bus-tickets/infant-picker";
+import { countSeatedBands, priceParty, seatedBand } from "@/lib/age-bands";
 import PassengerDetailsForm, {
   makeEmptyPassenger,
   passengersComplete,
@@ -49,6 +51,8 @@ export default function CheckoutPage() {
     resetTicketSelection,
     passengerCategory,
     currency,
+    infantCount,
+    setInfantCount,
   } = useTicketStore();
 
   // Derive the per-seat price from the schedule tier, falling back to seat.price
@@ -61,6 +65,20 @@ export default function CheckoutPage() {
       : passengerCategory === "TOURIST"
       ? schedule.priceTouristUsd
       : null;
+
+  /**
+   * Fares per age band, as the server computed them. The markup inside these
+   * numbers is Myboat's margin and is never sent to the browser, so the client
+   * cannot — and must not — work them out for itself.
+   */
+  const bandFares = schedule.bandFares?.[passengerCategory] || null;
+
+  // Bands are read off the dates of birth already being collected, not asked
+  // for a second time. Someone cannot declare a thirty-year-old to be a child.
+  const bands = countSeatedBands(passengers, bookingDate || undefined);
+  // One infant per adult: each needs a lap to travel on.
+  const maxInfants = bands.adults;
+  const partyPrice = priceParty(bandFares, { ...bands, infants: infantCount });
 
   const currencySymbol = currency === "USD" ? "$" : "MVR";
   const formatMoney = (amt) =>
@@ -95,14 +113,25 @@ export default function CheckoutPage() {
 
   // console.log(selectedSeats);
 
-  // Calculate total amount when seats or tier changes
+  // Keep the running total in step with the party. The server recomputes all
+  // of this from the operator's published fare — this is what the customer is
+  // shown, and the two must agree.
+  const partyGross = partyPrice?.gross;
   useEffect(() => {
     const total =
-      tierPricePerSeat != null
+      partyGross != null
+        ? partyGross
+        : tierPricePerSeat != null
         ? Number(tierPricePerSeat) * selectedSeats.length
         : selectedSeats.reduce((sum, seat) => sum + (seat.price || 0), 0);
     setTotalAmount(total);
-  }, [selectedSeats, setTotalAmount, tierPricePerSeat]);
+  }, [selectedSeats, setTotalAmount, tierPricePerSeat, partyGross]);
+
+  // Entering a date of birth can turn an adult into a child, which lowers the
+  // number of laps available. Trim rather than let the count go stale.
+  useEffect(() => {
+    if (infantCount > maxInfants) setInfantCount(maxInfants);
+  }, [infantCount, maxInfants, setInfantCount]);
 
   // One passenger block per booked seat. Resized rather than rebuilt so
   // anything already typed survives a seat being added or removed.
@@ -185,6 +214,11 @@ export default function CheckoutPage() {
         finalAmount: Number(totalAmount),
         currency: (currency || "MVR").toLowerCase(),
         passengerCategory,
+        // Priced server-side; sent so the intent covers the same party the
+        // booking will record.
+        passengers: cleanPassengers(passengers),
+        infants: infantCount,
+        scheduleId: schedule?.id ?? null,
       };
 
       const response = await api.post("/payments/create-intent", bookingData);
@@ -274,6 +308,7 @@ export default function CheckoutPage() {
           : new Date().toISOString(),
         seatNumbers: selectedSeats,
         passengers: cleanPassengers(passengers),
+        infants: infantCount,
         contactEmail: contactEmail.trim(),
         contactPhone: contactPhone.trim(),
         totalAmount: totalAmount,
@@ -366,9 +401,18 @@ export default function CheckoutPage() {
 
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-4">
+          <InfantPicker
+            count={infantCount}
+            onChange={setInfantCount}
+            maxInfants={maxInfants}
+            free={!bandFares || Number(bandFares.infant) === 0}
+          />
+
           <PassengerDetailsForm
             passengers={passengers}
             onChange={setPassengers}
+            travelDate={bookingDate || undefined}
+            childDiscounted={bandFares ? !!bandFares.childDiscounted : true}
             contactEmail={contactEmail}
             contactPhone={contactPhone}
             onContactChange={(field, value) =>
@@ -478,24 +522,84 @@ export default function CheckoutPage() {
             <div>
               <h3 className="font-medium mb-3">Selected Seats</h3>
               <div className="grid grid-cols-2 gap-3">
-                {selectedSeats.map((seat) => (
-                  <div
-                    key={seat.key}
-                    className="p-3 rounded-lg bg-sky-500/10 text-sm"
-                  >
-                    <div className="font-medium">{seat.seatNumber}</div>
-                    <div className="text-muted-foreground">
-                      {seat.deck} DECK • {seat.type}
-                    </div>
-                    <div className="text-sky-500 font-medium">
-                      {formatMoney(
-                        tierPricePerSeat != null ? tierPricePerSeat : seat.price
+                {selectedSeats.map((seat, i) => {
+                  const band = seatedBand(
+                    passengers[i]?.dateOfBirth,
+                    bookingDate || undefined
+                  );
+                  const seatFare = bandFares
+                    ? band === "CHILD"
+                      ? bandFares.child
+                      : bandFares.adult
+                    : tierPricePerSeat != null
+                    ? tierPricePerSeat
+                    : seat.price;
+                  return (
+                    <div
+                      key={seat.key}
+                      className="p-3 rounded-lg bg-sky-500/10 text-sm"
+                    >
+                      <div className="font-medium">{seat.seatNumber}</div>
+                      <div className="text-muted-foreground">
+                        {seat.deck} DECK • {seat.type}
+                      </div>
+                      <div className="text-sky-500 font-medium">
+                        {formatMoney(seatFare)}
+                      </div>
+                      {band === "CHILD" && bandFares?.childDiscounted && (
+                        <div className="text-xs text-emerald-600">Child fare</div>
                       )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
+
+            {/*
+              The party, spelled out. A customer who sees "MVR 1,650" for three
+              seats and an infant should be able to check the arithmetic without
+              asking anyone.
+            */}
+            {partyPrice && (
+              <div className="rounded-xl border bg-muted/30 p-3 space-y-1.5 text-sm">
+                {bands.adults > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      {bands.adults} × Adult
+                    </span>
+                    <span>{formatMoney(partyPrice.adultFare * bands.adults)}</span>
+                  </div>
+                )}
+                {bands.children > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      {bands.children} × Child
+                      {bandFares && !bandFares.childDiscounted &&
+                        " (adult fare on this route)"}
+                    </span>
+                    <span>
+                      {formatMoney(partyPrice.childFare * bands.children)}
+                    </span>
+                  </div>
+                )}
+                {infantCount > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      {infantCount} × Infant (on lap)
+                    </span>
+                    <span
+                      className={
+                        partyPrice.infantFare === 0 ? "text-emerald-600" : undefined
+                      }
+                    >
+                      {partyPrice.infantFare === 0
+                        ? "Free"
+                        : formatMoney(partyPrice.infantFare * infantCount)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
             <Separator />
 

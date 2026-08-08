@@ -17,6 +17,9 @@ const useTicketStore = create(
       totalAmount: 0,
       passengerCategory: null, // 'LOCAL' | 'EXPAT' | 'TOURIST'
       currency: 'MVR', // 'MVR' | 'USD'
+      // Lap infants: no seat, no passenger form, so nothing else in the
+      // selection knows about them.
+      infantCount: 0,
 
       setPassengerCategory: (category) =>
         set((state) => ({
@@ -44,6 +47,12 @@ const useTicketStore = create(
           totalAmount: Number(amount) || 0,
         })),
         
+      setInfantCount: (n) =>
+        set((state) => ({
+          ...state,
+          infantCount: Math.max(0, Number(n) || 0),
+        })),
+
       setSelectedBoardingPoint: (point) => 
         set((state) => ({
           ...state,
@@ -80,6 +89,7 @@ const useTicketStore = create(
           totalAmount: Number(state.totalAmount),
           discountAmount: 0,
           finalAmount: Number(state.totalAmount),
+          infants: Number(state.infantCount) || 0,
         };
       },
         
@@ -90,6 +100,7 @@ const useTicketStore = create(
           totalAmount: 0,
           selectedBoardingPoint: null,
           bookingDate: null,
+          infantCount: 0,
           // keep passengerCategory across resets so users don't re-pick per boat
         }),
     }),
